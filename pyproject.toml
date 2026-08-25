@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physioml"
+version = "0.1.0"
+description = "Traceable multimodal physiological and neural inference"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Elnaz Alikarami", email = "elnaz.karami@gmail.com" }]
+
+# The core provenance model deliberately has no dependencies: recordings,
+# windows, features, predictions and their lineage are plain Python, so the
+# chain of evidence can be tested without installing a scientific stack.
+# Everything that computes anything lives behind an extra.
+dependencies = []
+
+[project.optional-dependencies]
+signal = ["numpy>=1.26", "scipy>=1.11"]
+eeg    = ["numpy>=1.26", "scipy>=1.11", "mne>=1.6"]
+ml     = ["numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4"]
+dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 92
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["F", "E4", "E7", "E9", "B", "SIM", "RUF", "C4", "PIE", "RET", "I", "UP"]
+ignore = ["RET504", "SIM108", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG", "SIM", "RUF012", "B011"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/physioml"]
+ignore_missing_imports = true
+no_implicit_optional = true
+
+[tool.coverage.run]
+source = ["physioml"]
+branch = true

@@ -1,0 +1,57 @@
+Metadata-Version: 2.4
+Name: physioml
+Version: 0.1.0
+Summary: Traceable multimodal physiological and neural inference
+Author-email: Elnaz Alikarami <elnaz.karami@gmail.com>
+License: Clinical Data Fabric System (CDFS) — Proprietary License
+        Copyright © 2026 Elnaz Alikarami. All rights reserved.
+        
+        Elnaz Alikarami is the sole author and designer of the entire Clinical Data
+        Fabric System — its concept, architecture, design, and implementation.
+        
+            Author:  Elnaz Alikarami
+            GitHub:  @Elnazkarami  (https://github.com/Elnazkarami)
+            Email:   elnaz.karami@gmail.com
+        
+        TERMS
+        
+        This repository and all of its contents — including but not limited to source
+        code, notebooks, configuration, documentation, datasets, and design assets — are
+        the exclusive property of Elnaz Alikarami and are protected by copyright.
+        
+        Use of this repository for ANY purpose requires the direct, prior, written
+        approval of the author. Without such approval, no person or organization is
+        granted any right to use, copy, modify, merge, publish, distribute, sublicense,
+        reproduce, or create derivative works from any part of this repository, in whole
+        or in part, by any means or in any form.
+        
+        Unauthorized use is strictly prohibited.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+        FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE
+        LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN
+        CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+        
+        For permissions and inquiries, contact: elnaz.karami@gmail.com
+        
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: signal
+Requires-Dist: numpy>=1.26; extra == "signal"
+Requires-Dist: scipy>=1.11; extra == "signal"
+Provides-Extra: eeg
+Requires-Dist: numpy>=1.26; extra == "eeg"
+Requires-Dist: scipy>=1.11; extra == "eeg"
+Requires-Dist: mne>=1.6; extra == "eeg"
+Provides-Extra: ml
+Requires-Dist: numpy>=1.26; extra == "ml"
+Requires-Dist: scipy>=1.11; extra == "ml"
+Requires-Dist: scikit-learn>=1.4; extra == "ml"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: ruff>=0.6; extra == "dev"
+Requires-Dist: mypy>=1.11; extra == "dev"
+Requires-Dist: coverage>=7.6; extra == "dev"
+Dynamic: license-file
