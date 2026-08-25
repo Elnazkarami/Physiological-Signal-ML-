@@ -39,6 +39,14 @@ class Prediction:
     feature_set_version: str
     feature_ids: tuple[str, ...]
     source_window_ids: tuple[str, ...]
+    source_fact_ids: tuple[str, ...] = ()
+    """The CDFS facts this prediction ultimately rests on.
+
+    Distinct from ``feature_ids``, and the distinction is the whole cross-system
+    join. Feature and window identifiers belong to PhysioML and mean nothing to
+    CDFS; these are CDFS's own, and are what let a lineage query there reach
+    from a prediction back to the observations a site recorded. Required to
+    write a prediction back, optional to hold one in memory."""
 
     predicted_class: str | None = None
     predicted_value: float | None = None
@@ -54,7 +62,7 @@ class Prediction:
         kwargs["window_start"] = utc(kwargs.get("window_start"))
         kwargs["window_end"] = utc(kwargs.get("window_end"))
         kwargs["created_at"] = utc(kwargs.get("created_at"))
-        for key in ("feature_ids", "source_window_ids"):
+        for key in ("feature_ids", "source_window_ids", "source_fact_ids"):
             kwargs[key] = tuple(kwargs.get(key) or ())
         prediction = cls(**kwargs)
         prediction._require_accountable()
@@ -105,6 +113,7 @@ class Prediction:
                 "training_run_id": self.training_run_id,
                 "feature_set_version": self.feature_set_version,
                 "feature_ids": sorted(self.feature_ids),
+                "source_fact_ids": sorted(self.source_fact_ids),
             },
         )
 

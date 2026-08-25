@@ -30,7 +30,8 @@ CDFS  ◀──  derived ML facts + model provenance + source lineage
 
 ## What is built
 
-`physioml.core` — the provenance spine, and the only part that exists so far.
+`physioml.core` — the provenance spine — and `physioml.cdfs` — the client that reads
+observations and writes predictions back.
 
 | Type | Carries |
 | --- | --- |
@@ -41,6 +42,17 @@ CDFS  ◀──  derived ML facts + model provenance + source lineage
 | `TrainingRun` | Splits, strategy, seed, hyperparameters, metrics, code commit |
 | `ModelArtifact` | What a model expects to be fed |
 | `Prediction` | An output, plus both halves of its history |
+
+### The loop, closed and tested
+
+CDFS facts → windows → features → a prediction → a CDFS derived fact → a lineage query
+that reaches the original observations. That chain is asserted end to end against a
+**running CDFS deployment** rather than a mock, because a mock would only agree with
+whatever this repository believed CDFS does.
+
+Correcting an input on the CDFS side now produces an impact report naming the
+prediction as stale — CDFS says what is wrong without pretending it can recompute
+something it did not produce, which is the handoff PhysioML exists on the other side of.
 
 **It has no runtime dependencies, and CI asserts that.** The chain of evidence is plain
 Python, so it can be constructed and tested without installing a scientific stack — if
@@ -60,6 +72,9 @@ These are the load-bearing behaviours, and each has a test:
   *wrong order*, which otherwise scores without complaint and misaligns every column.
 - **A rejected window with no reason code.** QC labels; it never silently filters, so
   "how much of this subject survived QC" stays answerable.
+- **A prediction written back without CDFS fact ids.** Feature identifiers belong to
+  PhysioML and mean nothing across the boundary; CDFS checks every id it is given
+  exists, so a prediction cannot claim provenance it does not have.
 
 ### One design decision worth stating
 
@@ -75,8 +90,8 @@ holds any more.
 
 Signal I/O and device adapters · peripheral physiology (BVP, EDA, temperature,
 accelerometry) · EEG preprocessing, montage capability and features · multimodal fusion ·
-models and calibration · subject-aware evaluation and ablations · the CDFS read and write
-clients · cascade invalidation · any dataset, and therefore any result.
+models and calibration · subject-aware evaluation and ablations · PhysioML-side cascade
+invalidation · any dataset, and therefore any result.
 
 ## Install
 
