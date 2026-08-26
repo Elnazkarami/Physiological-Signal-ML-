@@ -66,6 +66,10 @@ class CDFSClient:
         """
         return [f["name"] for f in self.schema(study_id) if f.get("kind") == "model"]
 
+    def fact(self, fact_id: str) -> dict[str, Any]:
+        """One fact. The envelope is unwrapped; callers want the fact."""
+        return dict(self._get(f"/facts/{fact_id}").get("fact", {}))
+
     def lineage(self, fact_id: str) -> dict[str, Any]:
         return self._get(f"/facts/{fact_id}/lineage")
 
@@ -111,6 +115,63 @@ class CDFSClient:
                 )
         if not facts:
             raise ValueError("no predictions to write")
+        return self._post(
+            f"/studies/{study_id}/derived",
+            {"facts": facts, "source_system": source_system},
+        )
+
+    def replace_prediction(
+        self,
+        study_id: str,
+        prediction: Prediction,
+        *,
+        field: str,
+        supersedes: str,
+        reason: str,
+        confidence_field: str | None = None,
+        confidence_supersedes: str | None = None,
+        source_system: str = "PHYSIOML",
+    ) -> dict[str, Any]:
+        """Write a recomputed prediction in place of the one it replaces.
+
+        The other half of :func:`physioml.cdfs.invalidation.stale_predictions`.
+        Writing the new value without naming the old one would leave both in
+        force at the same coordinate, and a reader asking for the subject's
+        prediction would get two answers -- one of them computed from a value
+        the study has since retracted. Naming it retires the old value and
+        leaves a chain a reviewer can follow.
+
+        ``reason`` is required by CDFS on anything that supersedes a fact, and
+        :attr:`~physioml.cdfs.invalidation.StalePrediction.reason` composes one
+        that names the input that moved.
+
+        One prediction at a time, because a replacement is a specific claim
+        about a specific stale fact. A batch would need the pairing anyway, and
+        would turn a partial failure into a question about what was written.
+        """
+        if not prediction.source_fact_ids:
+            raise ValueError(
+                "a replacement must name the CDFS facts it was recomputed from"
+            )
+        if not reason:
+            raise ValueError(
+                "a fact that supersedes another must carry a reason; CDFS enforces "
+                "this and a rejected write is a worse place to discover it"
+            )
+
+        facts = [
+            self._fact(prediction, field, prediction.outcome)
+            | {
+                "supersedes": supersedes,
+                "reason": reason,
+            }
+        ]
+        if confidence_field is not None and prediction.probability is not None:
+            confidence = self._fact(prediction, confidence_field, prediction.probability)
+            if confidence_supersedes is not None:
+                confidence |= {"supersedes": confidence_supersedes, "reason": reason}
+            facts.append(confidence)
+
         return self._post(
             f"/studies/{study_id}/derived",
             {"facts": facts, "source_system": source_system},

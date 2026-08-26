@@ -51,9 +51,29 @@ that reaches the original observations. That chain is asserted end to end agains
 **running CDFS deployment** rather than a mock, because a mock would only agree with
 whatever this repository believed CDFS does.
 
-Correcting an input on the CDFS side now produces an impact report naming the
-prediction as stale — CDFS says what is wrong without pretending it can recompute
-something it did not produce, which is the handoff PhysioML exists on the other side of.
+And back the other way, which is the half that makes it a loop:
+
+```
+weight corrected  →  CDFS supersedes the BMI it derived from it
+                  →  impact report: the prediction is stale, recompute it
+                     in the system that produced it
+                  →  PhysioML finds its inputs moved, and what they moved to
+                  →  recomputed value written back, superseding the old one
+                  →  one prediction in force, and a chain a reviewer can read
+```
+
+CDFS says what is wrong without pretending it can recompute something it did not
+produce. PhysioML asks whether the facts its predictions were computed from are still
+the ones in force — a prediction resting on a retracted value should not be read as
+current, however plausible it still looks — and writes the recomputation back as a
+**replacement**, not a second opinion. Both halves are asserted against a running
+deployment, including that a correction leaves exactly one prediction in force
+afterwards and that its history runs from the retracted value to the one that stands.
+
+The replacement carries a reason naming the input that moved (`bmi 40.78 → 44.97`), not
+"model rerun". CDFS requires a reason on anything that supersedes a fact — 21 CFR
+11.10(e) applies to a model's corrections as much as a monitor's — and the input that
+changed is the answer to the question a reviewer is actually asking.
 
 **It has no runtime dependencies, and CI asserts that.** The chain of evidence is plain
 Python, so it can be constructed and tested without installing a scientific stack — if
@@ -237,8 +257,8 @@ movement made that model fail completely on one person.
 ## Not built
 
 EEG preprocessing, montage capability and features · multimodal fusion ·
-probability calibration · EEG channel ablation · PhysioML-side cascade invalidation ·
-anything beyond the peripheral wrist signals.
+probability calibration · EEG channel ablation · anything beyond the peripheral wrist
+signals.
 
 ## Install
 
