@@ -16,7 +16,7 @@ import argparse
 from physioml.dataset import FeatureTable
 from physioml.evaluation.run import evaluate
 from physioml.evaluation.splits import group_k_fold, leave_one_subject_out
-from physioml.models.classical import MODELS
+from physioml.models.classical import MODELS, calibrated_models
 
 
 def main() -> None:
@@ -25,6 +25,11 @@ def main() -> None:
     parser.add_argument("--positive", default="stress", help="positive class")
     parser.add_argument("--folds", type=int, help="use k-fold instead of leave-one-out")
     parser.add_argument("--models", nargs="*", help="limit to these model names")
+    parser.add_argument(
+        "--calibrated",
+        action="store_true",
+        help="also offer each model with probabilities calibrated on held-out subjects",
+    )
     args = parser.parse_args()
 
     table = FeatureTable.load(args.table)
@@ -42,17 +47,20 @@ def main() -> None:
         return leave_one_subject_out(table.subject_ids)
 
     header = (
-        f"{'model':18} {'bal.acc':>13}   {'F1':>5}   {'AUC':>5}   "
+        f"{'model':28} {'bal.acc':>13}   {'F1':>5}   {'AUC':>5}   "
         f"{'PR-AUC':>5}   {'Brier':>5}   {'ECE':>5}   {'worst':>5}"
     )
     print(header)
     print("-" * len(header))
 
-    chosen = args.models or list(MODELS)
+    available = dict(MODELS)
+    if args.calibrated:
+        available |= calibrated_models()
+    chosen = args.models or list(available)
     results = {}
     for name in chosen:
         result = evaluate(
-            table, MODELS[name], splits(), model_name=name, positive=args.positive
+            table, available[name], splits(), model_name=name, positive=args.positive
         )
         results[name] = result
         print(result.line(), flush=True)

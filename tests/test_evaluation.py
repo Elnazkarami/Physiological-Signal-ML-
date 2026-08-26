@@ -20,6 +20,7 @@ from physioml.evaluation.splits import (
     held_out_cohort,
     leave_one_subject_out,
 )
+from physioml.models.calibration import SubjectCalibrated, calibrated
 from physioml.models.classical import MODELS
 
 SUBJECTS = [f"S{n}" for n in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17)]
@@ -304,3 +305,92 @@ def test_a_signal_absent_from_the_table_is_refused():
             model_name="logistic",
             signals=["TEMP"],
         )
+
+
+# ── calibration ─────────────────────────────────────────────────────────────
+
+
+def overconfident() -> object:
+    """A model whose probabilities are pushed toward 0 and 1.
+
+    Well separated and badly calibrated, which is the combination calibration
+    exists for and the one a score alone will not show.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    class Sharpened(LogisticRegression):
+        def predict_proba(self, X):
+            p = super().predict_proba(X)[:, 1]
+            sharp = np.clip(p * 3.0 - 1.0, 0.001, 0.999)
+            return np.column_stack([1.0 - sharp, sharp])
+
+    return Pipeline([("scale", StandardScaler()), ("model", Sharpened(max_iter=2000))])
+
+
+def test_calibration_without_the_subject_of_each_row_is_refused():
+    """The shortcut that makes a calibrator look better than it is."""
+    made = table()
+    model = SubjectCalibrated(MODELS["logistic"])
+    with pytest.raises(ValueError, match="shares participants"):
+        model.fit(made.values, made.binary("stress"))
+
+
+def test_calibration_needs_more_than_one_training_subject():
+    made = table()
+    model = SubjectCalibrated(MODELS["logistic"])
+    one = made.subjects == made.subject_ids[0]
+    with pytest.raises(ValueError, match="at least two training subjects"):
+        model.fit(made.values[one], made.binary("stress")[one], groups=made.subjects[one])
+
+
+def test_an_unknown_calibration_method_is_refused():
+    with pytest.raises(ValueError, match="unknown calibration method"):
+        SubjectCalibrated(MODELS["logistic"], method="wishful")
+
+
+@pytest.mark.parametrize("method", ["isotonic", "sigmoid"])
+def test_calibration_improves_a_confidently_wrong_model(method):
+    made = table()
+    folds = list(leave_one_subject_out(made.subject_ids))
+    before = evaluate(made, overconfident, folds, model_name="raw")
+    after = evaluate(
+        made, calibrated(overconfident, method=method), folds, model_name=method
+    )
+    assert after.summary["ece_mean"] < before.summary["ece_mean"]
+    assert after.summary["brier_mean"] < before.summary["brier_mean"]
+
+
+def test_calibration_does_not_move_the_decision():
+    """Probabilities are restated; the operating point is left alone."""
+    made = table()
+    folds = list(leave_one_subject_out(made.subject_ids))
+    before = evaluate(made, overconfident, folds, model_name="raw")
+    after = evaluate(made, calibrated(overconfident), folds, model_name="iso")
+    assert after.summary["balanced_accuracy_mean"] == pytest.approx(
+        before.summary["balanced_accuracy_mean"]
+    )
+    assert after.summary["f1_macro_mean"] == pytest.approx(before.summary["f1_macro_mean"])
+
+
+def test_isotonic_calibration_preserves_the_ranking():
+    """It is monotone, so area under either curve should not move."""
+    made = table()
+    folds = list(leave_one_subject_out(made.subject_ids))
+    before = evaluate(made, overconfident, folds, model_name="raw")
+    after = evaluate(made, calibrated(overconfident), folds, model_name="iso")
+    assert after.summary["roc_auc_mean"] == pytest.approx(
+        before.summary["roc_auc_mean"], abs=0.01
+    )
+
+
+def test_a_calibrated_model_still_reports_two_columns_that_sum_to_one():
+    made = table()
+    model = SubjectCalibrated(MODELS["logistic"]).fit(
+        made.values, made.binary("stress"), groups=made.subjects
+    )
+    probability = model.predict_proba(made.values)
+    assert probability.shape == (len(made), 2)
+    assert np.allclose(probability.sum(axis=1), 1.0)
+    assert ((probability >= 0.0) & (probability <= 1.0)).all()

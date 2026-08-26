@@ -40,6 +40,14 @@ def linear_svm() -> Any:
 
     An uncalibrated SVM's decision function is not a probability, and reporting
     it as one would make every calibration number below meaningless.
+
+    This inner calibration is stratified, not grouped: sklearn's
+    ``CalibratedClassifierCV`` is not given the subject of each row, so the
+    same participants sit on both sides of its ``cv=3`` split. It is here to
+    turn a decision function into something bounded, not to make a trustworthy
+    probability, and this model's ECE should be read with that in mind.
+    :class:`~physioml.models.calibration.SubjectCalibrated` is the one that
+    holds participants out.
     """
     from sklearn.calibration import CalibratedClassifierCV
     from sklearn.pipeline import Pipeline
@@ -107,6 +115,21 @@ def majority() -> Any:
     return DummyClassifier(strategy="most_frequent")
 
 
+#: The same models with their probabilities calibrated on held-out subjects.
+#:
+#: Kept separate rather than folded into ``MODELS`` so a comparison table can
+#: put a model beside its calibrated self, which is the only way to see what
+#: calibration did.
+def _calibrated_models() -> dict[str, Callable[[], Any]]:
+    from physioml.models.calibration import calibrated
+
+    return {
+        f"{name}+isotonic": calibrated(factory)
+        for name, factory in MODELS.items()
+        if name != "majority"  # a constant model has nothing to calibrate
+    }
+
+
 MODELS: dict[str, Callable[[], Any]] = {
     "majority": majority,
     "logistic": logistic,
@@ -114,3 +137,8 @@ MODELS: dict[str, Callable[[], Any]] = {
     "random_forest": random_forest,
     "gradient_boosting": gradient_boosting,
 }
+
+
+def calibrated_models() -> dict[str, Callable[[], Any]]:
+    """Calibrated counterparts of every model that predicts a probability."""
+    return _calibrated_models()

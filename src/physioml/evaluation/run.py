@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -39,7 +41,7 @@ class Evaluation:
             return f"{value:.3f}" if value is not None else "  -  "
 
         return (
-            f"{self.model_name:18} "
+            f"{self.model_name:28} "
             f"{s['balanced_accuracy_mean']:.3f} ±{s['balanced_accuracy_sd']:.3f}"
             f"   {show('f1_macro_mean')}"
             f"   {show('roc_auc_mean')}"
@@ -48,6 +50,20 @@ class Evaluation:
             f"   {show('ece_mean')}"
             f"   {show('worst_subject_balanced_accuracy')}"
         )
+
+
+def _fit(model: Any, X: np.ndarray, y: np.ndarray, subjects: np.ndarray) -> None:
+    """Fit, telling the model who each row belongs to if it asks.
+
+    A calibrator needs the grouping to hold participants out of its own inner
+    split; a plain estimator does not take the argument at all. Asked by
+    signature rather than by try/except, so a TypeError raised *inside* a fit
+    is not swallowed and reported as "this model does not want groups".
+    """
+    if "groups" in inspect.signature(model.fit).parameters:
+        model.fit(X, y, groups=subjects)
+    else:
+        model.fit(X, y)
 
 
 def evaluate(
@@ -79,7 +95,7 @@ def evaluate(
             continue
 
         model = model_factory()
-        model.fit(table.values[train_rows], y_train)
+        _fit(model, table.values[train_rows], y_train, table.subjects[train_rows])
         predicted = model.predict(table.values[test_rows])
         probability = (
             model.predict_proba(table.values[test_rows])[:, 1]

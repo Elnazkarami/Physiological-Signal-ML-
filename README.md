@@ -202,8 +202,8 @@ classifier makes in front of a real user. Per-subject scores are reported for ev
 for that reason, and the worst one is carried into the summary rather than averaged away.
 
 Calibration is mediocre across the board — 0.086 to 0.117 expected calibration error, so
-a stated 90% is nearer 80%. That is recorded, not corrected; nothing here is calibrated
-yet.
+a stated 90% is nearer 80%. [Calibration](#calibration-fixes-the-spread-not-the-average)
+improves it, and not in the way the average suggests.
 
 Simple models were run first to establish whether the engineered features carry usable
 signal before anything deeper is justified. They do, and the simplest one is currently
@@ -254,10 +254,64 @@ One detail worth the space: for random forest, accelerometry alone has a worst s
 0.753, while the full feature set drops to 0.500 on S14. Adding physiological features to
 movement made that model fail completely on one person.
 
+## Calibration fixes the spread, not the average
+
+A probability is calibrated if the windows it calls 30% likely turn out stressed about
+30% of the time. Ranking does not need this. A number a person reads does.
+
+Calibration is fitted on **held-out subjects**, like everything else here. The usual
+shortcut is an inner stratified split, which puts the same participants in the fit set
+and the calibration set; the calibrator then learns that person's particular
+overconfidence rather than the model's general one, and reports itself better calibrated
+than it is. The inner split groups by subject and reuses the same splitter as the outer
+evaluation.
+
+Isotonic regression, leave-one-subject-out, decisions left untouched:
+
+| model | bal. accuracy | AUC | Brier | ECE |
+| --- | ---: | ---: | ---: | ---: |
+| logistic | 0.887 | 0.947 | 0.077 | 0.101 |
+| logistic + isotonic | 0.887 | 0.947 | **0.070** | **0.086** |
+| random forest | 0.859 | 0.978 | 0.069 | 0.117 |
+| random forest + isotonic | 0.859 | 0.975 | 0.067 | **0.095** |
+| gradient boosting | 0.852 | 0.976 | 0.082 | 0.086 |
+| gradient boosting + isotonic | 0.852 | 0.974 | **0.067** | 0.088 |
+
+Balanced accuracy is identical everywhere, by design: calibration restates confidence and
+leaves the operating point alone, so a before-and-after row shows the effect of one change
+rather than two. Isotonic regression is monotone, so ranking — and therefore AUC — is
+unchanged too.
+
+**On the average, this looks like a small win and for gradient boosting like none at all.
+The average is the wrong number.** Per subject, for logistic regression:
+
+| | mean | spread (sd) | worst subject |
+| --- | ---: | ---: | ---: |
+| uncalibrated | 0.101 | 0.067 | 0.254 |
+| isotonic | 0.086 | **0.031** | **0.171** |
+
+The spread across people more than halves. The subjects who were badly served improve a
+lot — S15 from 0.195 to 0.066, S11 from 0.254 to 0.171, S16 from 0.148 to 0.093 — while
+subjects who were already fine get slightly worse, S3 from 0.044 to 0.088. That is the
+trade a calibrator makes: it pulls everyone toward the cohort's confidence, which helps
+whoever was furthest out.
+
+The underlying problem is visible in the stated rates. Every participant's true stress
+share is between 0.21 and 0.24 — the protocol fixes it. The uncalibrated model's *average
+stated probability* ranges from 0.187 for S3 to **0.475 for S11**, two and a half times
+apart for people whose actual rate is the same. Calibration narrows that to 0.133–0.390.
+It does not close it, and no single global calibrator can: S11's confidence is wrong in a
+way that is specific to S11.
+
+So the honest statement is that these probabilities are better than they were and are
+still not good enough to put in front of someone as a percentage. Per-subject calibration,
+which would need held-out data from the person being predicted for, is the thing that
+would close it, and it is not built.
+
 ## Not built
 
 EEG preprocessing, montage capability and features · multimodal fusion ·
-probability calibration · EEG channel ablation · anything beyond the peripheral wrist
+per-subject calibration · EEG channel ablation · anything beyond the peripheral wrist
 signals.
 
 ## Install
@@ -277,6 +331,7 @@ pip install -e ".[signal,ml]"
 python scripts/build_features.py ~/Downloads/WESAD.zip wesad_features.npz
 python scripts/evaluate.py wesad_features.npz
 python scripts/ablate.py wesad_features.npz --model logistic
+python scripts/evaluate.py wesad_features.npz --calibrated
 ```
 
 Roughly 80 seconds to build the features and a couple of minutes to score all five
