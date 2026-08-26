@@ -7,10 +7,11 @@ layer for the [Clinical Data Fabric System](https://github.com/Elnazkarami/clini
 traceable from the model output all the way back to the exact sensor windows,
 transformations, features, model version, and source observations that produced it?
 
-> **Status: early.** The provenance spine is built and tested. No signal processing, no
-> models, and no results yet. Every claim below is either implemented and covered by a
-> test, or listed under *Not built* — nothing here is aspirational description of code
-> that does not exist.
+> **Status: peripheral signals working end to end.** Provenance spine, wrist-sensor
+> quality control, preprocessing, 28 features, subject-wise evaluation and a first
+> measured result on WESAD. EEG and fusion are not built. Every claim below is either
+> implemented and covered by a test, or listed under *Not built* — nothing here is
+> aspirational description of code that does not exist.
 
 ---
 
@@ -139,20 +140,78 @@ scientifically indefensible. A number wrong by a factor of four that looks usefu
 worse than an absent one. Rate is kept, at an error in line with what an optical wrist
 sensor gives.
 
-**Nothing has been learned from this yet.** No model, no result.
+## First result
+
+WESAD, 15 subjects, wrist only. 60-second windows at 5-second stride give 8,091 windows;
+34 are dropped for incomplete features, leaving **8,057 rows × 28 features**. Adjacent
+windows overlap by 55 seconds, so rows within a subject are strongly correlated and the
+row count is not a count of independent samples — which is why the evaluation below
+splits by person and not by row. Quality
+control marked 644 windows for motion, 34 for absent pulse and 24 for electrodermal
+discontinuity. Binary stress against baseline, amusement and meditation — 22.2% positive.
+
+Evaluation is **leave-one-subject-out**: fifteen folds, each trained on fourteen people
+and tested on the one held out. Scaling is fitted inside the fold. No subject is ever on
+both sides.
+
+| model | bal. accuracy | F1 | AUC | PR-AUC | Brier | ECE | worst subject |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| majority class | 0.500 ±0.000 | 0.438 | 0.500 | 0.222 | 0.222 | 0.000 | 0.500 |
+| **logistic regression** | **0.887 ±0.058** | 0.873 | 0.947 | 0.876 | 0.077 | 0.101 | **0.796** |
+| linear SVM | 0.828 ±0.113 | 0.844 | 0.955 | 0.892 | 0.067 | 0.092 | 0.606 |
+| random forest | 0.859 ±0.113 | 0.856 | **0.978** | **0.942** | 0.069 | 0.117 | 0.500 |
+| gradient boosting | 0.852 ±0.109 | 0.854 | 0.976 | 0.938 | 0.082 | 0.086 | 0.504 |
+
+The majority row is there so the others mean something: on a task that is 22% positive,
+answering "baseline" every time is 78% accurate and 0.500 balanced-accurate.
+
+**Logistic regression wins, and the ranking flips depending on which column you read.**
+The ensembles have the better AUC — random forest separates the classes best of anything
+here — but logistic regression has the higher balanced accuracy and half the fold-to-fold
+spread (±0.058 against ±0.113).
+
+The last column is why that matters. Random forest scores 0.978 AUC across the cohort and
+**0.500 — chance — on subject S14**; gradient boosting gets 0.504 on the same person.
+Logistic regression gets 0.818 there. A cohort mean hides a model that has learned
+nothing at all about someone, which is exactly the failure a deployed physiological
+classifier makes in front of a real user. Per-subject scores are reported for every fold
+for that reason, and the worst one is carried into the summary rather than averaged away.
+
+Calibration is mediocre across the board — 0.086 to 0.117 expected calibration error, so
+a stated 90% is nearer 80%. That is recorded, not corrected; nothing here is calibrated
+yet.
+
+Simple models were run first to establish whether the engineered features carry usable
+signal before anything deeper is justified. They do, and the simplest one is currently
+the most trustworthy across people.
 
 ## Not built
 
 EEG preprocessing, montage capability and features · multimodal fusion ·
-models and calibration · subject-aware evaluation and ablations · PhysioML-side cascade
-invalidation · any dataset, and therefore any result.
+probability calibration · modality and channel ablations · PhysioML-side cascade
+invalidation · anything beyond the peripheral wrist signals.
 
 ## Install
 
 ```bash
 pip install -e ".[dev]"          # core + tooling, no scientific stack
-pip install -e ".[signal,ml]"    # when the processing layers land
+pip install -e ".[signal,ml]"    # signal processing and models
 ```
+
+The core package has no runtime dependencies, and CI asserts that on every commit —
+including that NumPy is absent from a `[dev]`-only install.
+
+## Reproducing the result
+
+```bash
+pip install -e ".[signal,ml]"
+python scripts/build_features.py ~/Downloads/WESAD.zip wesad_features.npz
+python scripts/evaluate.py wesad_features.npz
+```
+
+Roughly 80 seconds to build the features and a couple of minutes to score all five
+models. The archive is read as a stream and never extracted — 2.1 GB compressed against
+about 17 GB unpacked.
 
 ## Non-goals for version 1
 
