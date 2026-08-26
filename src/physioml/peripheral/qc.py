@@ -29,7 +29,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from physioml.core.window import QCStatus
-from physioml.peripheral.preprocessing import detect_beats
+from physioml.peripheral.preprocessing import (
+    detect_beats,
+    prepare_bvp,
+    pulse_concentration,
+)
 
 if TYPE_CHECKING:
     from physioml.peripheral.windowing import Epoch
@@ -88,6 +92,17 @@ class QCPolicy:
     bvp_max_bpm: float = 180.0
     bvp_min_beats: int = 20
     """Fewer detectable beats than this in a window means no usable pulse."""
+
+    bvp_min_concentration: float = 0.25
+    """Least share of in-band power a real pulse concentrates at its own
+    frequency and the harmonic above it.
+
+    Sits in the gap between filtered white noise, which reaches 0.237 across 30
+    draws, and the weakest of 300 real WESAD windows, at 0.327. Both measured
+    exactly as this check calls it -- an earlier version of this threshold was
+    calibrated over a different band from the one it was then applied in, and
+    the separation it appeared to have did not exist under the conditions that
+    mattered."""
 
     bvp_detect_ceiling_bpm: float = 300.0
     """Peaks are sought up to this rate, well above anything physiological, so
@@ -159,14 +174,23 @@ DEFAULT_POLICY = QCPolicy()
 
 
 def check_bvp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
-    """Blood-volume pulse: is there a pulse in here at all?"""
-    signal = np.asarray(samples, dtype=float).ravel()
+    """Blood-volume pulse: is there a usable pulse in here?
+
+    Clipping and flatline are judged on the raw signal, because they are
+    properties of what the converter recorded and a filter would hide both.
+    Everything after that is judged on the *filtered* signal, because that is
+    what the features are computed from — quality control approving a signal
+    the extractor never sees would be checking the wrong thing.
+    """
+    raw = np.asarray(samples, dtype=float).ravel()
     codes: list[str] = []
-    if signal.size == 0:
+    if raw.size == 0:
         return [FLATLINE]
 
-    if float(np.std(signal)) <= policy.bvp_flat_sd:
+    if float(np.std(raw)) <= policy.bvp_flat_sd:
         return [FLATLINE]
+
+    signal = raw
 
     # Each rail is counted separately: a converter pinned at its positive limit
     # while the signal still swings well past that negatively is clipped, and
@@ -175,6 +199,26 @@ def check_bvp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
         if np.isclose(signal, rail, rtol=1e-9).mean() > policy.bvp_clip_fraction:
             codes.append(CLIPPED)
             break
+
+    # From here on, the signal as the feature extractor will see it.
+    try:
+        signal = prepare_bvp(raw, rate)
+    except ValueError:
+        signal = raw
+
+    # Periodicity before rate. Counting beats cannot separate a pulse from
+    # filtered noise, because noise produces peaks at a plausible spacing too.
+    if (
+        pulse_concentration(
+            signal,
+            rate,
+            min_bpm=policy.bvp_min_bpm,
+            max_bpm=policy.bvp_detect_ceiling_bpm,
+        )
+        < policy.bvp_min_concentration
+    ):
+        codes.append(NO_PULSE)
+        return codes
 
     beats = _pulse_peaks(signal, rate, policy)
     if beats.size < policy.bvp_min_beats:

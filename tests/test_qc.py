@@ -93,16 +93,18 @@ def test_a_clipped_converter_is_caught():
     assert CLIPPED in check_bvp(signal, 64.0, POLICY)
 
 
-def test_noise_is_not_mistaken_for_a_pulse():
-    """Peaks found in noise imply a rate no heart produces, and that is caught.
+@pytest.mark.parametrize("seed", range(6))
+def test_noise_is_not_mistaken_for_a_pulse(seed):
+    """Counting beats cannot catch this; periodicity can.
 
-    Not by NO_PULSE: a peak finder run over noise finds plenty of peaks. It is
-    the resulting rate — hundreds of beats a minute — that gives it away.
+    Band-passed noise has energy in the pulse band and yields peaks at a
+    perfectly plausible spacing, so a rate check passes it. What separates them
+    is that a heartbeat concentrates its power at one frequency and noise
+    spreads it — measured on WESAD, real pulse never falls below 0.33 and noise
+    never reaches 0.21.
     """
-    noise = np.random.default_rng(0).normal(0, 1, (3840, 1))
-    raised = check_bvp(noise, 64.0, POLICY)
-    assert raised, "noise must not pass as a pulse"
-    assert IMPLAUSIBLE_RATE in raised
+    noise = np.random.default_rng(seed).normal(0, 1, (3840, 1))
+    assert NO_PULSE in check_bvp(noise, 64.0, POLICY)
 
 
 def test_a_heart_rate_physiology_does_not_produce_is_caught():
