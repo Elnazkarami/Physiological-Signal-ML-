@@ -17,13 +17,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
+
+      # ── the core, with no scientific stack at all ───────────────────────────
+      # Installed first and deliberately alone. The provenance spine is supposed
+      # to be usable without numpy; asserting it needs an environment where numpy
+      # genuinely is not present, which is what this half of the job is.
+      - name: Install the package and test tooling only
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
 
-      # The provenance spine must stay installable with no scientific stack:
-      # if the chain of evidence needs numpy to be tested, it has grown into
-      # something else.
-      - name: Verify the core model has no runtime dependency
+      - name: Verify the package has no runtime dependency
         run: |
           pip install --dry-run --report /tmp/report.json . >/dev/null
           python - <<'PY'
@@ -32,8 +34,24 @@ jobs:
           installed = [i["metadata"]["name"] for i in report["install"]
                        if i["metadata"]["name"].lower() != "physioml"]
           assert not installed, f"runtime dependencies crept in: {installed}"
-          print("core has no runtime dependencies")
+          print("no runtime dependencies")
           PY
+
+      - name: Verify numpy really is absent
+        run: |
+          python - <<'PY'
+          import importlib.util, sys
+          if importlib.util.find_spec("numpy") is not None:
+              sys.exit("numpy is installed; the next step would prove nothing")
+          print("numpy absent, as required")
+          PY
+
+      - name: Core provenance tests, without a scientific stack
+        run: pytest tests/test_core.py -q
+
+      # ── everything else, which does need one ────────────────────────────────
+      - name: Install the signal and ML extras
+        run: pip install -e ".[dev,signal,ml]"
 
       - name: Lint
         run: ruff check src tests
@@ -41,5 +59,6 @@ jobs:
         run: ruff format --check src tests
       - name: Types
         run: mypy
-      - name: Tests
+
+      - name: Full test suite
         run: coverage run -m pytest -q && coverage report
