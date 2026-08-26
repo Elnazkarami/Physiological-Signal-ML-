@@ -42,7 +42,12 @@ ignore = ["RET504", "SIM108", "UP042"]
 "tests/*" = ["ARG", "SIM", "RUF012", "B011"]
 
 [tool.mypy]
-python_version = "3.11"
+# Deliberately not pinned to a python_version. The CI matrix runs mypy under
+# 3.11, 3.12 and 3.13, so incompatibility with the floor is caught by actually
+# running there. Pinning it instead made mypy parse the installed numpy's own
+# stubs as 3.11 on a 3.13 runner, where numpy 2.x writes `type` statements, and
+# the job failed on a syntax error in a dependency's typing rather than on
+# anything in this package.
 files = ["src/physioml"]
 ignore_missing_imports = true
 no_implicit_optional = true
