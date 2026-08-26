@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from physioml.core.window import QCStatus
+from physioml.peripheral.preprocessing import detect_beats
 
 if TYPE_CHECKING:
     from physioml.peripheral.windowing import Epoch
@@ -326,9 +327,10 @@ def _in_motion(epoch: Epoch, policy: QCPolicy) -> bool:
 
 
 def _pulse_peaks(signal: np.ndarray, rate: float, policy: QCPolicy) -> np.ndarray:
-    """Systolic peaks, at the closest spacing a plausible heart rate allows."""
-    from scipy.signal import find_peaks
-
-    spacing = max(int(rate * 60.0 / policy.bvp_detect_ceiling_bpm), 1)
-    peaks, _ = find_peaks(signal, distance=spacing, prominence=float(np.std(signal)) * 0.4)
-    return peaks
+    """Systolic peaks, spaced by the rate the spectrum says is there."""
+    return detect_beats(
+        signal,
+        rate,
+        min_bpm=policy.bvp_min_bpm,
+        max_bpm=policy.bvp_detect_ceiling_bpm,
+    )

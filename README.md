@@ -111,12 +111,39 @@ transitions plus the recovery periods WESAD's own guide says to ignore, and wind
 straddle a boundary. Those are produced and marked rather than dropped, so how many were
 lost stays countable.
 
-**Nothing has been learned from this yet.** No features, no model, no result.
+## Features, and one that was measured and removed
+
+28 features per 60-second window: pulse rate and amplitude, electrodermal level, slope,
+SCR count and area, skin-temperature level and slope, and accelerometry magnitude, jerk
+and per-axis variation. Quality control runs first and a rejected signal contributes
+nothing, because a heart rate from a flatlined sensor is not a missing value — it is a
+confident wrong one.
+
+**Pulse-rate variability is not among them.** SDNN, RMSSD and pNN50 were implemented,
+then validated against the chest electrocardiogram WESAD records alongside the wrist, on
+the same windows of the same subject:
+
+| | chest ECG (truth) | wrist PPG |
+| --- | ---: | ---: |
+| heart rate | 73.0 bpm | 69.8 bpm — mean abs. error **7.1 bpm** |
+| SDNN | 64.8 ms | 235.8 ms — **3.6× the real value** |
+
+Band-passing the pulse and spacing peaks by the spectrally-estimated rate each improved
+it; neither fixed it. The cause is not a threshold: at 64 Hz one sample is 15.6 ms, a
+large fraction of the 20–60 ms the measure resolves, and every missed or doubled beat
+enters squared.
+
+So they are not emitted. They would have carried enough signal to *raise a model's score*
+— being correlated with artifact rate and therefore with movement — while being
+scientifically indefensible. A number wrong by a factor of four that looks useful is
+worse than an absent one. Rate is kept, at an error in line with what an optical wrist
+sensor gives.
+
+**Nothing has been learned from this yet.** No model, no result.
 
 ## Not built
 
-Peripheral feature extraction (BVP, EDA, temperature, accelerometry) · signal quality
-control · EEG preprocessing, montage capability and features · multimodal fusion ·
+EEG preprocessing, montage capability and features · multimodal fusion ·
 models and calibration · subject-aware evaluation and ablations · PhysioML-side cascade
 invalidation · any dataset, and therefore any result.
 
