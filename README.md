@@ -86,10 +86,37 @@ every feature naming W is stale."* Had rejection minted a new identifier, featur
 computed while the window was still considered good would point at an identifier nothing
 holds any more.
 
+## The dataset
+
+WESAD — 15 subjects, 24.1 hours of chest and wrist physiology, read straight out of the
+2 GB archive without unpacking it. Unpacked it is roughly 17 GB, and a pipeline that
+needs that much scratch space before it computes anything is one people run once.
+
+All 15 subjects window in 68 seconds. Windows are cut by *time interval*, not sample
+count, because the Empatica E4 samples BVP at 64 Hz, accelerometry at 32 and EDA and
+temperature at 4 — windowing by count would silently give the modalities different
+durations.
+
+| | epochs | share |
+| --- | ---: | ---: |
+| baseline | 3,342 | 41.3% |
+| meditation | 2,001 | 24.7% |
+| stress | 1,814 | 22.4% |
+| amusement | 934 | 11.5% |
+| **labelled** | **8,091** | **47%** |
+| unlabelled | 9,111 | transitions and recovery, excluded |
+
+60-second windows, 5-second stride. The 53% unlabelled is not waste: it is the protocol
+transitions plus the recovery periods WESAD's own guide says to ignore, and windows that
+straddle a boundary. Those are produced and marked rather than dropped, so how many were
+lost stays countable.
+
+**Nothing has been learned from this yet.** No features, no model, no result.
+
 ## Not built
 
-Signal I/O and device adapters · peripheral physiology (BVP, EDA, temperature,
-accelerometry) · EEG preprocessing, montage capability and features · multimodal fusion ·
+Peripheral feature extraction (BVP, EDA, temperature, accelerometry) · signal quality
+control · EEG preprocessing, montage capability and features · multimodal fusion ·
 models and calibration · subject-aware evaluation and ablations · PhysioML-side cascade
 invalidation · any dataset, and therefore any result.
 
