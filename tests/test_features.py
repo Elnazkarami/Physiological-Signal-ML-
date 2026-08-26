@@ -17,15 +17,18 @@ from physioml.core.recording import Modality, Recording
 from physioml.core.window import QCStatus, SignalWindow
 from physioml.io.wesad import WRIST_HZ
 from physioml.peripheral.features import (
+    EXTRACTORS,
     FEATURE_SET_VERSION,
+    FEATURES_BY_SIGNAL,
     acc_features,
     bvp_features,
     eda_features,
     extract,
+    signal_of,
     temp_features,
 )
 from physioml.peripheral.preprocessing import bandpass, detect_beats, dominant_rate_bpm
-from physioml.peripheral.qc import assess
+from physioml.peripheral.qc import DEFAULT_POLICY, assess
 from physioml.peripheral.windowing import Epoch
 
 T0 = datetime(2017, 1, 1, tzinfo=UTC)
@@ -188,3 +191,37 @@ def test_every_feature_carries_its_window_and_version():
         assert feature.feature_set_version == FEATURE_SET_VERSION
         assert feature.source_window_ids
         assert feature.subject_id == "S00"
+
+
+# ── the signal each feature belongs to ──────────────────────────────────────
+
+
+def test_every_extractor_emits_only_names_declared_for_its_signal():
+    """An ablation built on a stale mapping blames the wrong sensor."""
+    rate = {"BVP": 64.0, "EDA": 4.0, "TEMP": 4.0, "ACC": 32.0}
+    inputs = {
+        "BVP": pulse(),
+        "EDA": np.linspace(2.0, 4.0, 240).reshape(-1, 1) + np.sin(np.arange(240)) * 0.05,
+        "TEMP": np.linspace(32.0, 33.0, 240).reshape(-1, 1),
+        "ACC": np.column_stack([np.sin(np.arange(1920) / 30.0) * 20 + 64] * 3),
+    }
+    for signal, extractor in EXTRACTORS.items():
+        emitted = set(extractor(inputs[signal], rate[signal], DEFAULT_POLICY))
+        assert emitted, f"{signal} produced nothing to check"
+        declared = set(FEATURES_BY_SIGNAL[signal])
+        assert emitted <= declared, f"{signal} emits undeclared {emitted - declared}"
+
+
+def test_no_feature_is_claimed_by_two_signals():
+    seen: dict[str, str] = {}
+    for signal, names in FEATURES_BY_SIGNAL.items():
+        for name in names:
+            assert name not in seen, f"{name} claimed by {seen.get(name)} and {signal}"
+            seen[name] = signal
+
+
+def test_the_signal_of_a_feature_is_not_guessed_from_its_prefix():
+    """The two names a prefix rule would misfile."""
+    assert signal_of("beat_count") == "BVP"
+    assert signal_of("scl_mean") == "EDA"
+    assert signal_of("heart_rate_from_nowhere") is None

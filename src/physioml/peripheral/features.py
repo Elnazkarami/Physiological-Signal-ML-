@@ -230,6 +230,62 @@ EXTRACTORS: dict[str, Extractor] = {
     "ACC": acc_features,
 }
 
+#: Which signal each feature comes from, for ablation.
+#:
+#: Declared rather than inferred from the name, because ``beat_count`` and
+#: ``scl_mean`` do not carry their sensor in their spelling and a prefix rule
+#: would quietly put them in the wrong group. A test asserts every extractor
+#: emits only names listed here, and that no name appears under two signals --
+#: an ablation built on a stale mapping reports the wrong sensor as the useful
+#: one, and nothing about the numbers would look wrong.
+FEATURES_BY_SIGNAL: dict[str, tuple[str, ...]] = {
+    "BVP": (
+        "pulse_rate_mean",
+        "pulse_rate_median",
+        "ppi_mean",
+        "pulse_amplitude_mean",
+        "pulse_amplitude_sd",
+        "beat_count",
+    ),
+    "EDA": (
+        "eda_mean",
+        "eda_sd",
+        "eda_min",
+        "eda_max",
+        "eda_slope_per_min",
+        "eda_auc",
+        "scl_mean",
+        "scr_count_per_min",
+        "scr_amplitude_mean",
+    ),
+    "TEMP": (
+        "temp_mean",
+        "temp_sd",
+        "temp_min",
+        "temp_max",
+        "temp_slope_per_min",
+    ),
+    "ACC": (
+        "acc_magnitude_mean",
+        "acc_magnitude_sd",
+        "acc_magnitude_max",
+        "acc_jerk_mean",
+        "acc_activity_count",
+        "acc_x_sd",
+        "acc_y_sd",
+        "acc_z_sd",
+    ),
+}
+
+
+def signal_of(feature_name: str) -> str | None:
+    """The signal a feature came from, or ``None`` if it is not one of ours."""
+    for signal, names in FEATURES_BY_SIGNAL.items():
+        if feature_name in names:
+            return signal
+    return None
+
+
 UNITS = {
     "pulse_rate_mean": "bpm",
     "pulse_rate_median": "bpm",

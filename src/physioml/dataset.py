@@ -19,7 +19,8 @@ participant's heart rate was average at a moment when it was not measured.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -61,6 +62,27 @@ class FeatureTable:
     def binary(self, positive: str = "stress") -> np.ndarray:
         """Labels as one-vs-rest, for the task WESAD is usually posed as."""
         return (self.labels == positive).astype(int)
+
+    def select(self, names: Sequence[str]) -> FeatureTable:
+        """The same rows, restricted to these feature columns.
+
+        Rows, subjects, labels and window identifiers are carried through
+        unchanged, so a model fitted on the subset is answerable for exactly
+        the windows the full table was. Column order follows ``names``.
+        """
+        missing = [n for n in names if n not in self.feature_names]
+        if missing:
+            raise KeyError(f"not in this table: {', '.join(sorted(missing))}")
+        if not names:
+            raise ValueError("a table with no features cannot be fitted")
+
+        index = {name: i for i, name in enumerate(self.feature_names)}
+        columns = [index[n] for n in names]
+        return replace(
+            self,
+            feature_names=tuple(names),
+            values=self.values[:, columns],
+        )
 
     def counts(self) -> dict[str, int]:
         unique, counts = np.unique(self.labels, return_counts=True)

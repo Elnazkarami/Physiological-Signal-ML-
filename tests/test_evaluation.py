@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from physioml.dataset import FeatureTable
+from physioml.evaluation.ablation import ablate
 from physioml.evaluation.metrics import aggregate, expected_calibration_error, score
 from physioml.evaluation.run import evaluate
 from physioml.evaluation.splits import (
@@ -193,3 +194,113 @@ def test_every_model_in_the_registry_runs():
         result = evaluate(made, factory, folds, model_name=name)
         assert len(result.folds) == 3, name
         assert 0.0 <= result.summary["balanced_accuracy_mean"] <= 1.0, name
+
+
+# ── ablation ────────────────────────────────────────────────────────────────
+
+
+def informative_table(seed: int = 0) -> FeatureTable:
+    """A cohort where the accelerometer knows the label and the skin does not."""
+    rng = np.random.default_rng(seed)
+    signal_names = ["acc_magnitude_mean", "acc_jerk_mean", "acc_x_sd"]
+    noise_names = ["eda_mean", "eda_sd", "scl_mean"]
+    values, subjects, labels = [], [], []
+    for subject in SUBJECTS:
+        for i in range(40):
+            stressed = i % 4 == 0
+            informative = rng.normal(2.0 if stressed else 0.0, 0.5, len(signal_names))
+            values.append([*informative, *rng.normal(0, 1, len(noise_names))])
+            subjects.append(subject)
+            labels.append("stress" if stressed else "baseline")
+    return FeatureTable(
+        feature_names=(*signal_names, *noise_names),
+        values=np.array(values),
+        subjects=np.array(subjects),
+        labels=np.array(labels),
+        window_ids=tuple(f"win-{i}" for i in range(len(values))),
+        feature_set_version="test-1",
+        qc_policy_version="test-1",
+    )
+
+
+def test_selecting_columns_keeps_every_row_and_its_subject():
+    made = table()
+    picked = made.select(["b"])
+    assert picked.feature_names == ("b",)
+    assert picked.values.shape == (len(made), 1)
+    assert np.array_equal(picked.subjects, made.subjects)
+    assert np.array_equal(picked.values[:, 0], made.values[:, 1])
+
+
+def test_selecting_a_feature_that_is_not_there_is_refused():
+    with pytest.raises(KeyError, match="not in this table"):
+        table().select(["a", "nonexistent"])
+
+
+def test_selecting_nothing_is_refused():
+    with pytest.raises(ValueError, match="no features"):
+        table().select([])
+
+
+def test_ablation_finds_the_signal_that_carries_the_label():
+    made = informative_table()
+    result = ablate(
+        made,
+        MODELS["logistic"],
+        lambda: leave_one_subject_out(made.subject_ids),
+        model_name="logistic",
+    )
+    assert result.signals == ("EDA", "ACC")
+
+    alone = {s: e.summary["balanced_accuracy_mean"] for s, e in result.alone.items()}
+    assert alone["ACC"] > 0.8, "the informative signal should stand on its own"
+    assert alone["EDA"] == pytest.approx(0.5, abs=0.08), "noise should be near chance"
+
+    assert result.ranked()[0][0] == "ACC"
+    assert result.contribution("ACC") > 0.2
+    assert result.contribution("EDA") < 0.05
+
+
+def test_each_ablation_gets_its_own_folds():
+    """A generator of splits would be exhausted after the first evaluation."""
+    made = informative_table()
+    calls = 0
+
+    def splits():
+        nonlocal calls
+        calls += 1
+        return leave_one_subject_out(made.subject_ids)
+
+    result = ablate(made, MODELS["logistic"], splits, model_name="logistic")
+    assert calls == 1 + 2 * len(result.signals)
+    for evaluation in (result.full, *result.alone.values(), *result.without.values()):
+        assert len(evaluation.folds) == len(SUBJECTS), "a fold set was consumed twice"
+
+
+def test_an_evaluation_records_the_features_it_was_fitted_on():
+    made = informative_table()
+    result = ablate(
+        made,
+        MODELS["logistic"],
+        lambda: leave_one_subject_out(made.subject_ids),
+        model_name="logistic",
+    )
+    assert result.alone["ACC"].feature_names == (
+        "acc_magnitude_mean",
+        "acc_jerk_mean",
+        "acc_x_sd",
+    )
+    assert "eda_mean" not in result.without["EDA"].feature_names
+    assert len(result.full.feature_names) == 6
+
+
+def test_a_signal_absent_from_the_table_is_refused():
+    made = informative_table()
+    with pytest.raises(KeyError, match="no TEMP features"):
+        ablate(
+            made,
+            MODELS["logistic"],
+            lambda: leave_one_subject_out(made.subject_ids),
+            model_name="logistic",
+            signals=["TEMP"],
+        )

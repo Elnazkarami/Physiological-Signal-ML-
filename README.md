@@ -165,6 +165,10 @@ both sides.
 The majority row is there so the others mean something: on a task that is 22% positive,
 answering "baseline" every time is 78% accurate and 0.500 balanced-accurate.
 
+These numbers are not the whole claim. [What the model is actually
+reading](#what-the-model-is-actually-reading) takes the sensors apart, and the answer
+lowers the figure that can honestly be called physiological.
+
 **Logistic regression wins, and the ranking flips depending on which column you read.**
 The ensembles have the better AUC — random forest separates the classes best of anything
 here — but logistic regression has the higher balanced accuracy and half the fold-to-fold
@@ -185,11 +189,56 @@ Simple models were run first to establish whether the engineered features carry 
 signal before anything deeper is justified. They do, and the simplest one is currently
 the most trustworthy across people.
 
+## What the model is actually reading
+
+A score says a model works. It does not say what it is working *from*, and on a wrist
+device that distinction decides what the result means. So each signal was scored alone,
+and then removed from the whole — two different questions, because a sensor can do well
+alone and still cost nothing when dropped, if another one carries the same information.
+
+Logistic regression, same folds throughout:
+
+| features | n | bal. accuracy | AUC | worst subject |
+| --- | ---: | ---: | ---: | ---: |
+| all signals | 28 | 0.887 ±0.058 | 0.947 | 0.796 |
+| **accelerometer alone** | 8 | **0.855 ±0.077** | 0.928 | 0.634 |
+| electrodermal alone | 9 | 0.819 ±0.117 | 0.893 | 0.500 |
+| pulse alone | 6 | 0.744 ±0.108 | 0.824 | 0.548 |
+| temperature alone | 5 | 0.702 ±0.145 | 0.744 | 0.337 |
+| without accelerometer | 20 | 0.839 ±0.108 | 0.912 | 0.603 |
+| without electrodermal | 19 | 0.853 ±0.108 | 0.923 | 0.578 |
+| without pulse | 22 | 0.885 ±0.059 | 0.939 | 0.748 |
+| without temperature | 23 | 0.889 ±0.054 | 0.953 | 0.794 |
+
+**The accelerometer alone gets 0.855 — within 0.032 of all 28 features together.** It is
+the largest contributor on removal (−0.048) and the pattern repeats with random forest,
+where accelerometry alone reaches 0.854 against 0.859 for everything.
+
+That is a finding about the dataset, not a better model. WESAD induces stress with the
+Trier Social Stress Test: the participant stands, speaks in front of a panel and does
+mental arithmetic, while baseline is seated reading and meditation is seated breathing.
+Posture and movement differ across conditions **by design**. A classifier reaching 0.855
+from accelerometry is substantially detecting the protocol rather than the physiology,
+and it would not survive contact with a setting where stressed people sit still.
+
+The honest number for the physiological claim is the one with movement removed:
+**0.839 balanced accuracy from pulse, electrodermal activity and temperature alone.**
+Lower than the headline, and it is the one that means what it appears to mean.
+
+Two smaller results in the same table. Pulse contributes +0.003 — near nothing beyond
+what the other sensors already supply, consistent with a wrist optical sensor that gives
+rate and no usable variability. Temperature contributes −0.002: the model is very
+slightly *better* without it, which is reported rather than rounded away.
+
+One detail worth the space: for random forest, accelerometry alone has a worst subject of
+0.753, while the full feature set drops to 0.500 on S14. Adding physiological features to
+movement made that model fail completely on one person.
+
 ## Not built
 
 EEG preprocessing, montage capability and features · multimodal fusion ·
-probability calibration · modality and channel ablations · PhysioML-side cascade
-invalidation · anything beyond the peripheral wrist signals.
+probability calibration · EEG channel ablation · PhysioML-side cascade invalidation ·
+anything beyond the peripheral wrist signals.
 
 ## Install
 
@@ -207,6 +256,7 @@ including that NumPy is absent from a `[dev]`-only install.
 pip install -e ".[signal,ml]"
 python scripts/build_features.py ~/Downloads/WESAD.zip wesad_features.npz
 python scripts/evaluate.py wesad_features.npz
+python scripts/ablate.py wesad_features.npz --model logistic
 ```
 
 Roughly 80 seconds to build the features and a couple of minutes to score all five

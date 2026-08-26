@@ -19,6 +19,9 @@ class Evaluation:
 
     model_name: str
     task: str
+    feature_names: tuple[str, ...]
+    """The columns this run was fitted on -- the subject of an ablation."""
+
     folds: tuple[Scores, ...]
     runs: tuple[TrainingRun, ...]
     """A training run per fold, carrying the split it was fitted under."""
@@ -99,4 +102,4 @@ def evaluate(
             )
         )
 
-    return Evaluation(model_name, task, tuple(folds), tuple(runs))
+    return Evaluation(model_name, task, table.feature_names, tuple(folds), tuple(runs))
