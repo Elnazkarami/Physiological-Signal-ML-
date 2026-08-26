@@ -5,3 +5,8 @@ __pycache__/
 data/
 *.edf
 *.fif
+
+# build artifacts
+*.egg-info/
+build/
+dist/
