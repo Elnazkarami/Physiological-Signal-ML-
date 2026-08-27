@@ -251,15 +251,15 @@ def test_ablation_finds_the_signal_that_carries_the_label():
         lambda: leave_one_subject_out(made.subject_ids),
         model_name="logistic",
     )
-    assert result.signals == ("EDA", "ACC")
+    assert result.signals == ("wrist EDA", "wrist ACC")
 
     alone = {s: e.summary["balanced_accuracy_mean"] for s, e in result.alone.items()}
-    assert alone["ACC"] > 0.8, "the informative signal should stand on its own"
-    assert alone["EDA"] == pytest.approx(0.5, abs=0.08), "noise should be near chance"
+    assert alone["wrist ACC"] > 0.8, "the informative signal should stand on its own"
+    assert alone["wrist EDA"] == pytest.approx(0.5, abs=0.08), "noise should be near chance"
 
-    assert result.ranked()[0][0] == "ACC"
-    assert result.contribution("ACC") > 0.2
-    assert result.contribution("EDA") < 0.05
+    assert result.ranked()[0][0] == "wrist ACC"
+    assert result.contribution("wrist ACC") > 0.2
+    assert result.contribution("wrist EDA") < 0.05
 
 
 def test_each_ablation_gets_its_own_folds():
@@ -286,24 +286,24 @@ def test_an_evaluation_records_the_features_it_was_fitted_on():
         lambda: leave_one_subject_out(made.subject_ids),
         model_name="logistic",
     )
-    assert result.alone["ACC"].feature_names == (
+    assert result.alone["wrist ACC"].feature_names == (
         "acc_magnitude_mean",
         "acc_jerk_mean",
         "acc_x_sd",
     )
-    assert "eda_mean" not in result.without["EDA"].feature_names
+    assert "eda_mean" not in result.without["wrist EDA"].feature_names
     assert len(result.full.feature_names) == 6
 
 
 def test_a_signal_absent_from_the_table_is_refused():
     made = informative_table()
-    with pytest.raises(KeyError, match="no TEMP features"):
+    with pytest.raises(KeyError, match="no wrist TEMP features"):
         ablate(
             made,
             MODELS["logistic"],
             lambda: leave_one_subject_out(made.subject_ids),
             model_name="logistic",
-            signals=["TEMP"],
+            signals=["wrist TEMP"],
         )
 
 

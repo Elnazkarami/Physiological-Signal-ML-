@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 
 from physioml.dataset import FeatureTable
-from physioml.evaluation.ablation import ablate
+from physioml.evaluation.ablation import ablate, device_groups, signal_groups
 from physioml.evaluation.splits import group_k_fold, leave_one_subject_out
 from physioml.models.classical import MODELS
 
@@ -26,6 +26,12 @@ def main() -> None:
     parser.add_argument("--model", default="logistic", choices=sorted(MODELS))
     parser.add_argument("--positive", default="stress", help="positive class")
     parser.add_argument("--folds", type=int, help="use k-fold instead of leave-one-out")
+    parser.add_argument(
+        "--by",
+        default="signal",
+        choices=("signal", "device"),
+        help="ablate one sensor at a time, or one whole device at a time",
+    )
     args = parser.parse_args()
 
     table = FeatureTable.load(args.table)
@@ -38,10 +44,15 @@ def main() -> None:
         return leave_one_subject_out(table.subject_ids)
 
     result = ablate(
-        table, MODELS[args.model], splits, model_name=args.model, positive=args.positive
+        table,
+        MODELS[args.model],
+        splits,
+        model_name=args.model,
+        groups=device_groups() if args.by == "device" else signal_groups(),
+        positive=args.positive,
     )
     print(result.table())
-    print("\nbalanced accuracy lost when each signal is removed:")
+    print(f"\nbalanced accuracy lost when each {args.by} is removed:")
     for signal, contribution in result.ranked():
         print(f"   {signal:5} {contribution:+.3f}")
 

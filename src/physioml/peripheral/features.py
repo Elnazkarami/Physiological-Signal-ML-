@@ -49,16 +49,25 @@ earlier version should be recomputed, and any ppi_sdnn, ppi_rmssd or ppi_pnn50
 value from one should be discarded rather than recomputed."""
 
 
-def _f(name: str, value: float, window_id: str, subject_id: str, unit: str | None = None):
+def _f(
+    name: str,
+    value: float,
+    window_id: str,
+    subject_id: str,
+    unit: str | None = None,
+    *,
+    feature_set: str = FEATURE_SET,
+    feature_set_version: str = FEATURE_SET_VERSION,
+):
     return Feature.create(
         subject_id=subject_id,
         name=name,
         value=float(value),
         unit=unit,
-        feature_set=FEATURE_SET,
-        feature_set_version=FEATURE_SET_VERSION,
+        feature_set=feature_set,
+        feature_set_version=feature_set_version,
         source_window_ids=(window_id,),
-        transform_id=f"{FEATURE_SET}@{FEATURE_SET_VERSION}",
+        transform_id=f"{feature_set}@{feature_set_version}",
     )
 
 
@@ -306,7 +315,13 @@ UNITS = {
 
 
 def extract(
-    epoch: Epoch, qc: QCResult | None = None, policy: QCPolicy = DEFAULT_POLICY
+    epoch: Epoch,
+    qc: QCResult | None = None,
+    policy: QCPolicy = DEFAULT_POLICY,
+    *,
+    extractors: dict[str, Extractor] | None = None,
+    feature_set: str = FEATURE_SET,
+    feature_set_version: str = FEATURE_SET_VERSION,
 ) -> list[Feature]:
     """Every feature computable from one epoch, honouring quality control.
 
@@ -316,8 +331,9 @@ def extract(
     accelerometry that says so.
     """
     made: list[Feature] = []
+    table = EXTRACTORS if extractors is None else extractors
     for name, samples in epoch.samples.items():
-        extractor = EXTRACTORS.get(name)
+        extractor = table.get(name)
         if extractor is None:
             continue
         if qc is not None and qc.statuses.get(name, QCStatus.VALID) is QCStatus.REJECTED:
@@ -327,7 +343,15 @@ def extract(
         rate = window.sampling_rate_hz
         values = extractor(samples, rate, policy)
         made.extend(
-            _f(key, value, window.window_id, epoch.subject_id, UNITS.get(key))
+            _f(
+                key,
+                value,
+                window.window_id,
+                epoch.subject_id,
+                UNITS.get(key),
+                feature_set=feature_set,
+                feature_set_version=feature_set_version,
+            )
             for key, value in values.items()
             if np.isfinite(value)
         )

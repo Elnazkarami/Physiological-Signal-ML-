@@ -23,6 +23,12 @@ def main() -> None:
     parser.add_argument("--length", type=float, default=60.0, help="window seconds")
     parser.add_argument("--stride", type=float, default=5.0, help="stride seconds")
     parser.add_argument("--subjects", nargs="*", help="limit to these subject ids")
+    parser.add_argument(
+        "--device",
+        default="wrist",
+        choices=("wrist", "chest", "both"),
+        help="wrist band, chest band, or both joined on the window interval",
+    )
     args = parser.parse_args()
 
     started = time.time()
@@ -31,6 +37,7 @@ def main() -> None:
         length_seconds=args.length,
         stride_seconds=args.stride,
         subjects=args.subjects,
+        device=args.device,
         progress=True,
     )
     table.save(args.output)

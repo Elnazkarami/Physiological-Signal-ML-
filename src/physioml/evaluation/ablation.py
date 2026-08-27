@@ -24,13 +24,34 @@ across feature sets and not across folds.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from physioml.dataset import FeatureTable
 from physioml.evaluation.run import Evaluation, evaluate
 from physioml.evaluation.splits import Split
+from physioml.peripheral.chest import CHEST_FEATURES_BY_SIGNAL
 from physioml.peripheral.features import FEATURES_BY_SIGNAL
+
+
+def signal_groups() -> dict[str, tuple[str, ...]]:
+    """Every signal of both devices, chest names prefixed to stay distinct."""
+    groups = {f"wrist {k}": v for k, v in FEATURES_BY_SIGNAL.items()}
+    groups.update({f"chest {k}": v for k, v in CHEST_FEATURES_BY_SIGNAL.items()})
+    return groups
+
+
+def device_groups() -> dict[str, tuple[str, ...]]:
+    """The two devices, each as one group.
+
+    The question a per-signal ablation cannot answer: not which sensor carries
+    the most, but whether the second piece of hardware is worth wearing. A
+    chest strap and a wrist band are not two features, they are two decisions.
+    """
+    wrist = tuple(n for names in FEATURES_BY_SIGNAL.values() for n in names)
+    chest = tuple(n for names in CHEST_FEATURES_BY_SIGNAL.values() for n in names)
+    return {"wrist": wrist, "chest": chest}
+
 
 SplitSource = Callable[[], Iterable[Split]]
 """Called once per ablation, because a generator of splits is consumed by use."""
@@ -71,8 +92,9 @@ class Ablation:
         )
 
     def table(self) -> str:
+        width = max(22, max(len(s) for s in self.signals) + 9)
         header = (
-            f"{'features':22} {'n':>3}   {'bal.acc':>13}   {'AUC':>5}   "
+            f"{'features':{width}} {'n':>3}   {'bal.acc':>13}   {'AUC':>5}   "
             f"{'worst':>5}   {'vs all':>7}"
         )
         lines = [header, "-" * len(header)]
@@ -81,7 +103,7 @@ class Ablation:
             summary = run.summary
             delta = self._score(run) - self.baseline
             return (
-                f"{name:22} {len(run.feature_names):>3}   "
+                f"{name:{width}} {len(run.feature_names):>3}   "
                 f"{summary['balanced_accuracy_mean']:.3f} "
                 f"±{summary['balanced_accuracy_sd']:.3f}   "
                 f"{summary['roc_auc_mean']:.3f}   "
@@ -105,6 +127,7 @@ def ablate(
     splits: SplitSource,
     *,
     model_name: str,
+    groups: Mapping[str, Sequence[str]] | None = None,
     signals: Sequence[str] | None = None,
     positive: str = "stress",
 ) -> Ablation:
@@ -114,9 +137,10 @@ def ablate(
     the same folds freshly generated. Passing the folds themselves would work
     once and then silently score every later subset on an exhausted iterator.
     """
+    using = signal_groups() if groups is None else groups
     present = {
         signal: [n for n in names if n in table.feature_names]
-        for signal, names in FEATURES_BY_SIGNAL.items()
+        for signal, names in using.items()
     }
     chosen = (
         tuple(signals) if signals is not None else tuple(s for s, n in present.items() if n)

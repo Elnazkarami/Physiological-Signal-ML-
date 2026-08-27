@@ -27,6 +27,13 @@ import numpy as np
 
 from physioml.core.feature import Feature
 from physioml.io.wesad import WESAD
+from physioml.peripheral.chest import (
+    CHEST_EXTRACTORS,
+    CHEST_FEATURE_SET,
+    CHEST_FEATURE_SET_VERSION,
+    CHEST_POLICY,
+    assess_chest,
+)
 from physioml.peripheral.features import FEATURE_SET_VERSION, extract
 from physioml.peripheral.qc import DEFAULT_POLICY, QCPolicy, assess
 from physioml.peripheral.windowing import epochs
@@ -134,13 +141,55 @@ class FeatureTable:
         )
 
 
+def _version_of(device: str) -> str:
+    """What produced these columns, in one string a model can be pinned to.
+
+    A fused table is not version 1.3 of the wrist feature set and not 1.0 of
+    the chest one; it is both, and a model artifact recording only one of them
+    would accept a table it has never seen.
+    """
+    if device == "wrist":
+        return FEATURE_SET_VERSION
+    if device == "chest":
+        return f"chest-{CHEST_FEATURE_SET_VERSION}"
+    return f"{FEATURE_SET_VERSION}+chest-{CHEST_FEATURE_SET_VERSION}"
+
+
+def _policy_version(device: str, policy: QCPolicy, chest_policy: QCPolicy) -> str:
+    if device == "wrist":
+        return policy.version
+    if device == "chest":
+        return chest_policy.version
+    return f"{policy.version}+{chest_policy.version}"
+
+
+def _wrist(epoch, policy: QCPolicy) -> tuple[list[Feature], dict[str, tuple[str, ...]]]:
+    verdict = assess(epoch, policy)
+    return extract(epoch, verdict, policy), verdict.codes
+
+
+def _chest(epoch, policy: QCPolicy) -> tuple[list[Feature], dict[str, tuple[str, ...]]]:
+    verdict = assess_chest(epoch, policy)
+    found = extract(
+        epoch,
+        verdict,
+        policy,
+        extractors=CHEST_EXTRACTORS,
+        feature_set=CHEST_FEATURE_SET,
+        feature_set_version=CHEST_FEATURE_SET_VERSION,
+    )
+    return found, {f"chest:{k}": v for k, v in verdict.codes.items()}
+
+
 def build(
     archive: Path | str,
     *,
     subjects: list[str] | None = None,
+    device: str = "wrist",
     length_seconds: float = 60.0,
     stride_seconds: float = 5.0,
     policy: QCPolicy = DEFAULT_POLICY,
+    chest_policy: QCPolicy = CHEST_POLICY,
     min_coverage: float = 0.9,
     progress: bool = False,
 ) -> FeatureTable:
@@ -149,9 +198,20 @@ def build(
     Subjects are processed one at a time and released, because the signals do
     not fit in memory together and the features do so comfortably.
 
+    ``device`` is ``wrist``, ``chest``, or ``both``. **Both** reads each
+    subject twice and joins the two devices on the window interval, not on
+    position in a list: the recordings are the same length and the same stride
+    produces the same intervals, but pairing by index would be an assumption
+    where pairing by time is a fact. A window either device could not produce
+    features for is left with the other device's features and dropped later if
+    the coverage rule says so.
+
     ``min_coverage`` is the share of rows a feature must appear in to become a
     column. Below it the feature is dropped; above it, the rows missing it are.
     """
+    if device not in ("wrist", "chest", "both"):
+        raise ValueError(f"device must be wrist, chest or both, not {device!r}")
+
     source = WESAD(archive)
     chosen = subjects or source.subjects()
 
@@ -161,29 +221,52 @@ def build(
     row_windows: list[str] = []
     codes: dict[str, int] = {}
 
-    for subject_id in chosen:
-        data = source.read(subject_id)
-        for epoch in epochs(
-            data, length_seconds=length_seconds, stride_seconds=stride_seconds
-        ):
-            if not epoch.labelled:
-                continue
-            verdict = assess(epoch, policy)
-            for signal, found in verdict.codes.items():
-                for code in found:
-                    key = f"{signal}:{code}"
-                    codes[key] = codes.get(key, 0) + 1
+    def count(found: dict[str, tuple[str, ...]]) -> None:
+        for signal, reasons in found.items():
+            for code in reasons:
+                key = f"{signal}:{code}"
+                codes[key] = codes.get(key, 0) + 1
 
-            features = extract(epoch, verdict, policy)
-            if not features:
+    for subject_id in chosen:
+        by_interval: dict[tuple[float, float], dict[str, Feature]] = {}
+        keeping: dict[tuple[float, float], tuple[str, str]] = {}
+        order: list[tuple[float, float]] = []
+
+        for which, extract_one, this_policy in (
+            ("wrist", _wrist, policy),
+            ("chest", _chest, chest_policy),
+        ):
+            if device not in (which, "both"):
                 continue
-            rows.append({f.qualified_name: f for f in features})
+            data = source.read(subject_id, device=which)
+            for epoch in epochs(
+                data, length_seconds=length_seconds, stride_seconds=stride_seconds
+            ):
+                if not epoch.labelled:
+                    continue
+                features, found = extract_one(epoch, this_policy)
+                count(found)
+                if not features:
+                    continue
+                interval = (epoch.start_seconds, epoch.duration_seconds)
+                if interval not in by_interval:
+                    by_interval[interval] = {}
+                    order.append(interval)
+                    keeping[interval] = (
+                        epoch.label or "",
+                        next(iter(epoch.windows.values())).window_id,
+                    )
+                by_interval[interval].update({f.qualified_name: f for f in features})
+            del data
+
+        for interval in order:
+            label, window_id = keeping[interval]
+            rows.append(by_interval[interval])
             row_subjects.append(subject_id)
-            row_labels.append(epoch.label or "")
-            row_windows.append(next(iter(epoch.windows.values())).window_id)
+            row_labels.append(label)
+            row_windows.append(window_id)
         if progress:
             print(f"  {subject_id}: {len(rows)} rows so far", flush=True)
-        del data
 
     if not rows:
         raise ValueError("no labelled windows produced any features")
@@ -214,8 +297,8 @@ def build(
         subjects=np.array([row_subjects[i] for i in complete]),
         labels=np.array([row_labels[i] for i in complete]),
         window_ids=tuple(row_windows[i] for i in complete),
-        feature_set_version=FEATURE_SET_VERSION,
-        qc_policy_version=policy.version,
+        feature_set_version=_version_of(device),
+        qc_policy_version=_policy_version(device, policy, chest_policy),
         dropped_incomplete=len(rows) - len(complete),
         qc_codes=codes,
     )

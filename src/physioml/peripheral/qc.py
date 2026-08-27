@@ -23,6 +23,7 @@ difference visible rather than a footnote nobody wrote down.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -285,7 +286,14 @@ def check_acc(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return codes
 
 
-CHECKS = {"BVP": check_bvp, "EDA": check_eda, "TEMP": check_temp, "ACC": check_acc}
+Check = Callable[[np.ndarray, float, "QCPolicy"], list[str]]
+
+CHECKS: dict[str, Check] = {
+    "BVP": check_bvp,
+    "EDA": check_eda,
+    "TEMP": check_temp,
+    "ACC": check_acc,
+}
 
 
 # ── assessing a whole epoch ──────────────────────────────────────────────────
@@ -312,24 +320,36 @@ class QCResult:
         return tuple(sorted({c for codes in self.codes.values() for c in codes}))
 
 
-def assess(epoch: Epoch, policy: QCPolicy = DEFAULT_POLICY) -> QCResult:
+def assess(
+    epoch: Epoch,
+    policy: QCPolicy = DEFAULT_POLICY,
+    *,
+    checks: dict[str, Check] | None = None,
+    motion_affects: str | None = "BVP",
+) -> QCResult:
     """Judge every signal in one epoch.
 
     Motion is decided across modalities rather than within one: accelerometry is
     what says whether the participant moved, and the consequence falls on the
     optical pulse. Checking BVP against itself could never find it.
+
+    ``checks`` and ``motion_affects`` are what make this usable for a second
+    device. The chest band has no optical sensor, so movement has no channel to
+    be charged to there and ``motion_affects`` is None; its signals are named
+    differently and carry different checks.
     """
     statuses: dict[str, QCStatus] = {}
     codes: dict[str, tuple[str, ...]] = {}
+    table = CHECKS if checks is None else checks
 
-    moved = _in_motion(epoch, policy)
+    moved = motion_affects is not None and _in_motion(epoch, policy)
     for name, samples in epoch.samples.items():
-        check = CHECKS.get(name)
+        check = table.get(name)
         if check is None:
             continue
         rate = epoch.windows[name].sampling_rate_hz
         found = check(samples, rate, policy)
-        if moved and name == "BVP":
+        if moved and name == motion_affects:
             found.append(MOTION)
 
         fatal = [c for c in found if c not in policy.warn_only]
