@@ -7,9 +7,10 @@ layer for the [Clinical Data Fabric System](https://github.com/Elnazkarami/clini
 traceable from the model output all the way back to the exact sensor windows,
 transformations, features, model version, and source observations that produced it?
 
-> **Status: peripheral signals working end to end.** Provenance spine, wrist-sensor
-> quality control, preprocessing, 28 features, subject-wise evaluation and a first
-> measured result on WESAD. EEG and fusion are not built. Every claim below is either
+> **Status: both peripheral devices working end to end.** Provenance spine, quality
+> control and features for a wrist band and a chest strap, subject-wise evaluation,
+> calibration, ablation by sensor and by device, and a closed cascade with CDFS. EEG is
+> not built. Every claim below is either
 > implemented and covered by a test, or listed under *Not built* — nothing here is
 > aspirational description of code that does not exist.
 
@@ -308,11 +309,88 @@ still not good enough to put in front of someone as a percentage. Per-subject ca
 which would need held-out data from the person being predicted for, is the thing that
 would close it, and it is not built.
 
+## Adding a second device
+
+WESAD also records a RespiBAN chest strap at 700 Hz: electrocardiogram, respiration,
+muscle activity, plus its own electrodermal, temperature and accelerometry channels. 35
+more features, joined to the wrist window by time interval.
+
+The cardiac payoff is real. Heart-rate variability was [removed from the wrist feature
+set](#features-and-one-that-was-measured-and-removed) after producing 236 ms of SDNN
+against a true 65 — at 64 Hz one sample is 15.6 ms of the 20–60 ms the measure resolves.
+At 700 Hz one sample is 1.43 ms, and on beat trains built to a stated SDNN the recovered
+value comes back within about a millisecond. SDNN, RMSSD and pNN50 are ordinary here.
+
+Whether the strap is worth wearing is a different question, and the ablation answers it on
+identical rows and identical folds:
+
+| features | n | bal. accuracy | AUC | worst subject |
+| --- | ---: | ---: | ---: | ---: |
+| both devices | 63 | **0.904 ±0.129** | 0.978 | 0.500 |
+| wrist alone | 28 | 0.874 ±0.062 | 0.941 | **0.764** |
+| chest alone | 35 | 0.881 ±0.141 | 0.970 | 0.500 |
+
+**The second device raises the average and makes the model less reliable for the person it
+serves worst.** Balanced accuracy goes up 0.029, the fold-to-fold spread doubles, and the
+worst subject falls from 0.764 to chance. For a cohort statistic that is an improvement.
+For something a person wears it is close to the opposite, and the mean alone would have
+reported it as a straightforward win.
+
+Per signal, the ranking is the same one the wrist found, more so:
+
+| alone | n | bal. accuracy | AUC | worst |
+| --- | ---: | ---: | ---: | ---: |
+| **chest accelerometer** | 8 | **0.915 ±0.084** | 0.969 | 0.729 |
+| wrist accelerometer | 8 | 0.857 ±0.070 | 0.928 | 0.668 |
+| chest electrocardiogram | 7 | 0.797 ±0.136 | 0.953 | 0.510 |
+| chest electrodermal | 9 | 0.738 ±0.146 | 0.846 | 0.438 |
+| chest muscle activity | 3 | 0.673 ±0.163 | 0.716 | 0.349 |
+| chest respiration | 3 | 0.659 ±0.078 | 0.691 | 0.579 |
+| chest temperature | 5 | 0.585 ±0.125 | 0.721 | 0.431 |
+
+**The chest accelerometer alone beats all 63 features together** — 0.915 against 0.904,
+with a better worst subject and half the spread. It is the single best sensor in this
+dataset, and it is a posture sensor. The stress condition has participants standing to
+speak; a strap on the torso reads that more directly than a band on the wrist does.
+
+That makes the accelerometry finding from the wrist harder to explain away rather than
+easier. With movement removed from both devices:
+
+| physiology only | n | bal. accuracy | worst subject |
+| --- | ---: | ---: | ---: |
+| both devices | 47 | 0.871 ±0.135 | 0.500 |
+| chest only | 27 | 0.839 ±0.158 | 0.495 |
+| wrist only | 20 | 0.834 ±0.110 | 0.650 |
+
+Adding a chest strap's worth of electrocardiogram, respiration and muscle activity to a
+wrist band buys **0.037 balanced accuracy and costs 0.150 on the worst subject**. The
+electrocardiogram is the largest single contributor on removal (+0.021), so the cardiac
+features do carry signal — they are just more subject-specific than the wrist's, which is
+what an inter-individual SDNN range of 40 to 100 ms would predict.
+
+### One subject is missing from that table
+
+S16's electrocardiogram clips against the amplifier rail, and it does so much more in the
+stress condition — 2.9% of samples against 1.5% at baseline. The quality-control rule
+that catches it therefore rejects that participant's **entire positive class**, and the
+detector's output for those windows is not physiology anyway: 128 bpm with an RMSSD of
+6.9 ms, which is the shape of a detector tracking a flat clipped plateau.
+
+That is a quality-control threshold correlated with the label, which is worth stating
+plainly rather than tuning until it goes away.
+
+It also exposed a bug of my own. A fold whose test subject has only one class cannot yield
+a balanced accuracy — it is the mean of per-class recall, and an absent class has none.
+Scored anyway it returns 1.0 or 0.0 for whichever class is present. It showed up as **the
+majority-class baseline scoring 0.533 instead of exactly 0.500**, which is the reason that
+row is in every table. Such folds are now skipped and the subject is named in the output,
+because a mean over fourteen subjects reported as though it were fifteen is a quiet lie.
+
 ## Not built
 
-EEG preprocessing, montage capability and features · multimodal fusion ·
-per-subject calibration · EEG channel ablation · anything beyond the peripheral wrist
-signals.
+EEG preprocessing, montage capability, features and channel ablation · per-subject
+calibration · frequency-domain heart-rate variability, which needs windows longer than
+the minute these are · deep architectures, which the ablations do not yet justify.
 
 ## Install
 
@@ -332,6 +410,9 @@ python scripts/build_features.py ~/Downloads/WESAD.zip wesad_features.npz
 python scripts/evaluate.py wesad_features.npz
 python scripts/ablate.py wesad_features.npz --model logistic
 python scripts/evaluate.py wesad_features.npz --calibrated
+
+python scripts/build_features.py ~/Downloads/WESAD.zip wesad_fused.npz --device both
+python scripts/ablate.py wesad_fused.npz --by device
 ```
 
 Roughly 80 seconds to build the features and a couple of minutes to score all five

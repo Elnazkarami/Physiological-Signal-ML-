@@ -8,6 +8,8 @@ failure — it would show up as a better score.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -394,3 +396,51 @@ def test_a_calibrated_model_still_reports_two_columns_that_sum_to_one():
     assert probability.shape == (len(made), 2)
     assert np.allclose(probability.sum(axis=1), 1.0)
     assert ((probability >= 0.0) & (probability <= 1.0)).all()
+
+
+def single_class_subject(table_in: FeatureTable, subject: str) -> FeatureTable:
+    """The same table with one participant's positives relabelled away."""
+    labels = table_in.labels.copy()
+    labels[table_in.subjects == subject] = "baseline"
+    return replace(table_in, labels=labels)
+
+
+def test_a_fold_with_one_class_on_test_is_not_scored():
+    """It was, and it moved the majority baseline off 0.500.
+
+    Balanced accuracy is the mean of per-class recall, and an absent class has
+    none. Scored anyway the fold returns 1.0 or 0.0 for whichever class is
+    present, and the cohort mean moves for a reason unrelated to the model.
+    """
+    made = single_class_subject(table(), "S4")
+    folds = list(leave_one_subject_out(made.subject_ids))
+    result = evaluate(made, MODELS["majority"], folds, model_name="majority")
+
+    assert "S4" in result.skipped
+    assert len(result.folds) == len(SUBJECTS) - 1
+    assert result.summary["balanced_accuracy_mean"] == pytest.approx(0.5)
+
+
+def test_the_subjects_that_could_not_be_scored_are_reported():
+    """A mean over fourteen subjects presented as fifteen is a quiet lie."""
+    made = single_class_subject(table(), "S7")
+    result = evaluate(
+        made,
+        MODELS["logistic"],
+        leave_one_subject_out(made.subject_ids),
+        model_name="logistic",
+    )
+    assert result.skipped == ("S7",)
+    assert "S7" not in {s for fold in result.folds for s in fold.per_subject}
+
+
+def test_an_evaluation_with_nothing_scorable_raises():
+    made = table()
+    labels = np.full(len(made), "baseline")
+    with pytest.raises(ValueError, match="no fold could be scored"):
+        evaluate(
+            replace(made, labels=labels),
+            MODELS["logistic"],
+            leave_one_subject_out(made.subject_ids),
+            model_name="logistic",
+        )

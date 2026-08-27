@@ -65,6 +65,13 @@ def main() -> None:
         results[name] = result
         print(result.line(), flush=True)
 
+    unscored = sorted({s for r in results.values() for s in r.skipped})
+    if unscored:
+        print(
+            f"\nnot scored: {', '.join(unscored)} -- one side of the fold held a "
+            "single class, so balanced accuracy is undefined there"
+        )
+
     print("\nper-subject balanced accuracy")
     per_model = {}
     for name, result in results.items():
@@ -74,6 +81,8 @@ def main() -> None:
         per_model[name] = scores
     print("subj  " + "  ".join(f"{n[:9]:>9}" for n in per_model))
     for subject in table.subject_ids:
+        if any(subject not in scores for scores in per_model.values()):
+            continue  # not scored for at least one model; see "not scored" above
         print(
             f"{subject:5} " + "  ".join(f"{per_model[n][subject]:9.3f}" for n in per_model)
         )

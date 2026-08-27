@@ -28,6 +28,11 @@ class Evaluation:
     runs: tuple[TrainingRun, ...]
     """A training run per fold, carrying the split it was fitted under."""
 
+    skipped: tuple[str, ...] = ()
+    """Subjects whose fold could not be scored, because one side of it held a
+    single class. Carried rather than dropped: a cohort mean over fourteen
+    subjects reported as though it were fifteen is a quiet lie."""
+
     @property
     def summary(self) -> dict[str, float]:
         return aggregate(list(self.folds))
@@ -85,6 +90,7 @@ def evaluate(
     labels = table.binary(positive)
     folds: list[Scores] = []
     runs: list[TrainingRun] = []
+    skipped: list[str] = []
 
     for split in splits:
         train_rows, test_rows = split.mask(table.subjects)
@@ -92,6 +98,17 @@ def evaluate(
             continue
         y_train, y_test = labels[train_rows], labels[test_rows]
         if len(np.unique(y_train)) < 2:
+            skipped.extend(split.test_subjects)
+            continue
+        if len(np.unique(y_test)) < 2:
+            # Balanced accuracy is the mean of per-class recall, and a class
+            # that is absent has none. Scored anyway, this fold returns the
+            # recall of whichever class is present -- 1.0 or 0.0 -- and the
+            # cohort mean moves for a reason that has nothing to do with the
+            # model. It showed up as a majority-class baseline scoring 0.533
+            # instead of exactly 0.500 on the fused table, where one subject
+            # had lost every stress window to quality control.
+            skipped.extend(split.test_subjects)
             continue
 
         model = model_factory()
@@ -118,4 +135,15 @@ def evaluate(
             )
         )
 
-    return Evaluation(model_name, task, table.feature_names, tuple(folds), tuple(runs))
+    if not folds:
+        raise ValueError(
+            "no fold could be scored; every split had a single class on one side"
+        )
+    return Evaluation(
+        model_name,
+        task,
+        table.feature_names,
+        tuple(folds),
+        tuple(runs),
+        tuple(dict.fromkeys(skipped)),
+    )
