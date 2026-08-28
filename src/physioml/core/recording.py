@@ -38,6 +38,16 @@ class Modality(str, Enum):
     """Accelerometry."""
 
     RESP = "resp"
+
+    EOG = "eog"
+    """Electro-oculography: eye movement, which is what distinguishes REM
+    sleep from the other stages and is scored alongside the EEG for exactly
+    that reason."""
+
+    EMG = "emg"
+    """Electromyography: muscle activity. Submental in sleep scoring, where
+    atonia is the other half of the REM definition; trapezius in stress
+    protocols, where it reads tension."""
     SPO2 = "spo2"
 
     @property
