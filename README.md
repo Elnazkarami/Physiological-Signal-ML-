@@ -305,9 +305,8 @@ It does not close it, and no single global calibrator can: S11's confidence is w
 way that is specific to S11.
 
 So the honest statement is that these probabilities are better than they were and are
-still not good enough to put in front of someone as a percentage. Per-subject calibration,
-which would need held-out data from the person being predicted for, is the thing that
-would close it, and it is not built.
+still not good enough to put in front of someone as a percentage. What closes the gap is
+[a few minutes of the person's own data](#seven-minutes-of-your-own-data).
 
 ## Adding a second device
 
@@ -386,10 +385,66 @@ majority-class baseline scoring 0.533 instead of exactly 0.500**, which is the r
 row is in every table. Such folds are now skipped and the subject is named in the output,
 because a mean over fourteen subjects reported as though it were fifteen is a quiet lie.
 
+## Seven minutes of your own data
+
+Cohort calibration narrows the spread of stated confidence across people and cannot close
+it, because S11's confidence is wrong in a way specific to S11. The remedy a deployment
+actually has is a short enrolment: a few labelled minutes from the person, before the
+model is trusted on them.
+
+**The model is never trained on that enrolment.** It stays leave-one-subject-out; only the
+calibrator sees the person's own data, which keeps this a statement about calibration
+rather than about fine-tuning. Enrolment windows, and every window overlapping one, are
+removed from the evaluation — so all three columns below are scored on identical rows.
+
+| enrolment | wall clock | ECE, none | ECE, cohort | ECE, personal | worst subject |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 5% of each condition | 7.1 min | 0.098 | 0.088 | **0.038** | 0.245 → 0.166 → **0.104** |
+| 10% | 9.2 min | 0.099 | 0.090 | 0.047 | 0.250 → 0.169 → 0.187 |
+| 20% | 13.8 min | 0.101 | 0.096 | **0.040** | 0.260 → 0.175 → **0.102** |
+
+**Seven minutes of a person's own labelled data more than halves the calibration error,
+and beats cohort calibration by a factor of over two.** The subjects the cohort calibrator
+could not reach are the ones that move most: S11 from 0.260 to 0.021, S15 from 0.189 to
+0.008, S13 from 0.157 to 0.015.
+
+More enrolment is not reliably better — 10% scores worse than 5% here, and one subject
+(S6) is made worse by personalisation at every size tried. With fifteen participants those
+differences are within the noise of the estimate, which is the honest reading rather than
+a dose-response curve.
+
+### The enrolment has to contain the thing being calibrated
+
+Three ways of choosing those minutes were implemented, and the differences are findings
+rather than options.
+
+**Scattering single windows across the session does not work at all.** Each enrolment
+window forces a window-length exclusion on either side, so it costs two minutes of session
+to buy one. Twenty-four of them consume a twenty-minute recording completely: the first
+version of this returned an empty evaluation set for every subject, which is the
+arithmetic of the idea rather than a bug in it. Enrolment is taken in contiguous blocks,
+which cost the same two minutes however long they are.
+
+**Enrolling someone before the session starts does not work either.** A protocol runs its
+conditions in blocks, so the opening minutes are one condition, and a calibrator given one
+class has nothing to calibrate.
+
+**Blocks spread evenly across the session may or may not work,** depending on where the
+stress episode happens to fall relative to them.
+
+What works is taking the opening slice of *each condition the session passes through*. The
+practical statement the three make together: personalising a stress model needs labelled
+stress from that person. Time on the device is not enough, and neither is a lot of it.
+
+One number in this section was wrong before it was right. Enrolment cost was first
+reported as one minute per window — 107 minutes for a session that ran for 60. These
+windows overlap by 55 of their 60 seconds, so the cost is the union of what they cover,
+not the sum of their lengths, and the cost is the whole point of the method.
+
 ## Not built
 
-EEG preprocessing, montage capability, features and channel ablation · per-subject
-calibration · frequency-domain heart-rate variability, which needs windows longer than
+EEG preprocessing, montage capability, features and channel ablation ·
+frequency-domain heart-rate variability, which needs windows longer than
 the minute these are · deep architectures, which the ablations do not yet justify.
 
 ## Install
@@ -413,6 +468,7 @@ python scripts/evaluate.py wesad_features.npz --calibrated
 
 python scripts/build_features.py ~/Downloads/WESAD.zip wesad_fused.npz --device both
 python scripts/ablate.py wesad_fused.npz --by device
+python scripts/personalise.py wesad_features.npz
 ```
 
 Roughly 80 seconds to build the features and a couple of minutes to score all five

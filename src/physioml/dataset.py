@@ -52,6 +52,15 @@ class FeatureTable:
 
     labels: np.ndarray
     window_ids: tuple[str, ...]
+    window_starts: np.ndarray
+    """Seconds from the start of the recording, per row.
+
+    Kept because a table that has forgotten *when* each row happened cannot be
+    split in time, and these windows overlap by 55 of their 60 seconds. Any
+    within-subject split made at random puts almost the same minute on both
+    sides of it.
+    """
+
     feature_set_version: str
     qc_policy_version: str
     dropped_incomplete: int = 0
@@ -112,6 +121,7 @@ class FeatureTable:
             labels=self.labels,
             feature_names=np.array(self.feature_names),
             window_ids=np.array(self.window_ids),
+            window_starts=self.window_starts,
             meta=np.array(
                 json.dumps(
                     {
@@ -134,6 +144,14 @@ class FeatureTable:
             subjects=loaded["subjects"],
             labels=loaded["labels"],
             window_ids=tuple(loaded["window_ids"].tolist()),
+            window_starts=(
+                loaded["window_starts"]
+                if "window_starts" in loaded
+                # Written before row times were recorded. Left empty rather
+                # than filled with an index, which would silently become a
+                # plausible-looking timeline.
+                else np.full(len(loaded["subjects"]), np.nan)
+            ),
             feature_set_version=meta["feature_set_version"],
             qc_policy_version=meta["qc_policy_version"],
             dropped_incomplete=meta["dropped_incomplete"],
@@ -219,6 +237,7 @@ def build(
     row_subjects: list[str] = []
     row_labels: list[str] = []
     row_windows: list[str] = []
+    row_starts: list[float] = []
     codes: dict[str, int] = {}
 
     def count(found: dict[str, tuple[str, ...]]) -> None:
@@ -229,7 +248,7 @@ def build(
 
     for subject_id in chosen:
         by_interval: dict[tuple[float, float], dict[str, Feature]] = {}
-        keeping: dict[tuple[float, float], tuple[str, str]] = {}
+        keeping: dict[tuple[float, float], tuple[str, str, float]] = {}
         order: list[tuple[float, float]] = []
 
         for which, extract_one, this_policy in (
@@ -255,16 +274,18 @@ def build(
                     keeping[interval] = (
                         epoch.label or "",
                         next(iter(epoch.windows.values())).window_id,
+                        epoch.start_seconds,
                     )
                 by_interval[interval].update({f.qualified_name: f for f in features})
             del data
 
         for interval in order:
-            label, window_id = keeping[interval]
+            label, window_id, started = keeping[interval]
             rows.append(by_interval[interval])
             row_subjects.append(subject_id)
             row_labels.append(label)
             row_windows.append(window_id)
+            row_starts.append(started)
         if progress:
             print(f"  {subject_id}: {len(rows)} rows so far", flush=True)
 
@@ -297,6 +318,7 @@ def build(
         subjects=np.array([row_subjects[i] for i in complete]),
         labels=np.array([row_labels[i] for i in complete]),
         window_ids=tuple(row_windows[i] for i in complete),
+        window_starts=np.array([row_starts[i] for i in complete], dtype=float),
         feature_set_version=_version_of(device),
         qc_policy_version=_policy_version(device, policy, chest_policy),
         dropped_incomplete=len(rows) - len(complete),

@@ -47,6 +47,9 @@ def table(rows_per_subject: int = 40, seed: int = 0) -> FeatureTable:
         subjects=np.array(subjects),
         labels=np.array(labels),
         window_ids=tuple(f"win-{i}" for i in range(len(values))),
+        window_starts=np.tile(
+            np.arange(rows_per_subject, dtype=float) * 30.0, len(SUBJECTS)
+        ),
         feature_set_version="test-1",
         qc_policy_version="test-1",
     )
@@ -221,6 +224,7 @@ def informative_table(seed: int = 0) -> FeatureTable:
         subjects=np.array(subjects),
         labels=np.array(labels),
         window_ids=tuple(f"win-{i}" for i in range(len(values))),
+        window_starts=np.tile(np.arange(40, dtype=float) * 30.0, len(SUBJECTS)),
         feature_set_version="test-1",
         qc_policy_version="test-1",
     )
