@@ -44,6 +44,21 @@ class Scores:
     predictor would beat, kept beside the metrics so it cannot be forgotten."""
 
     n: int
+    kappa: float = 0.0
+    """Cohen's kappa: agreement corrected for what chance would give.
+
+    The metric sleep staging is reported in, and the reason it is here. Five
+    stages are unevenly distributed -- N2 is 45% of a night and N1 is 6% -- so
+    raw agreement flatters any model, and published automatic scoring is
+    compared on kappa rather than accuracy."""
+
+    per_class: dict[str, float] = field(default_factory=dict)
+    """Recall for each class. On a five-stage problem the macro average hides
+    which stage a model cannot see, and it is nearly always N1."""
+
+    labels: tuple[str, ...] = ()
+    """Class order, so the confusion matrix can be read."""
+
     per_subject: dict[str, float] = field(default_factory=dict)
     """Balanced accuracy for each held-out subject."""
 
@@ -78,8 +93,10 @@ def score(
         average_precision_score,
         balanced_accuracy_score,
         brier_score_loss,
+        cohen_kappa_score,
         confusion_matrix,
         f1_score,
+        recall_score,
         roc_auc_score,
     )
 
@@ -106,6 +123,10 @@ def score(
                 balanced_accuracy_score(truth[rows], predicted[rows])
             )
 
+    present = np.unique(np.concatenate([truth, predicted]))
+    recalls = recall_score(truth, predicted, labels=present, average=None, zero_division=0)
+    counts = np.array([np.sum(truth == c) for c in present], dtype=float)
+
     return Scores(
         balanced_accuracy=float(balanced_accuracy_score(truth, predicted)),
         f1_macro=float(f1_score(truth, predicted, average="macro", zero_division=0)),
@@ -114,13 +135,32 @@ def score(
         brier=brier,
         ece=expected,
         accuracy=float(accuracy_score(truth, predicted)),
-        positive_rate=float(np.mean(truth == 1)) if binary else float("nan"),
+        # What a constant predictor would score. For a 0/1 problem that is the
+        # share of the positive class; for anything else it is the share of the
+        # commonest one. Testing `binary` alone was not enough: two classes
+        # named "W" and "N2" are binary, and `truth == 1` is false for every
+        # row of them, which reported a rate of zero.
+        positive_rate=_constant_rate(truth, counts),
         n=int(truth.size),
+        kappa=float(cohen_kappa_score(truth, predicted)),
+        per_class={str(c): float(r) for c, r in zip(present, recalls, strict=True)},
+        labels=tuple(str(c) for c in present),
         per_subject=per_subject,
         confusion=tuple(
-            tuple(int(v) for v in row) for row in confusion_matrix(truth, predicted)
+            tuple(int(v) for v in row)
+            for row in confusion_matrix(truth, predicted, labels=present)
         ),
     )
+
+
+def _constant_rate(truth: np.ndarray, counts: np.ndarray) -> float:
+    """The accuracy the best constant answer would get."""
+    if counts.sum() == 0:
+        return 0.0
+    labelled_one_zero = set(np.unique(truth).tolist()) <= {0, 1}
+    if labelled_one_zero:
+        return float(np.mean(truth == 1))
+    return float(counts.max() / counts.sum())
 
 
 def expected_calibration_error(
@@ -155,8 +195,17 @@ def aggregate(folds: list[Scores]) -> dict[str, float]:
         "balanced_accuracy_sd": float(balanced.std()),
         "balanced_accuracy_min": float(balanced.min()),
         "f1_macro_mean": float(np.mean([f.f1_macro for f in folds])),
+        "kappa_mean": float(np.mean([f.kappa for f in folds])),
+        "kappa_sd": float(np.std([f.kappa for f in folds])),
+        "kappa_min": float(np.min([f.kappa for f in folds])),
+        "accuracy_mean": float(np.mean([f.accuracy for f in folds])),
         "n_total": float(sum(f.n for f in folds)),
     }
+    classes = sorted({c for f in folds for c in f.per_class})
+    for name in classes:
+        found = [f.per_class[name] for f in folds if name in f.per_class]
+        if found:
+            summary[f"recall_{name}"] = float(np.mean(found))
     for name, values in (
         ("roc_auc", [f.roc_auc for f in folds]),
         ("pr_auc", [f.pr_auc for f in folds]),

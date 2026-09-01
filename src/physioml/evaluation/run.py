@@ -78,7 +78,7 @@ def evaluate(
     *,
     model_name: str,
     task: str = "stress",
-    positive: str = "stress",
+    positive: str | None = "stress",
     dataset_version: str = "wesad-1",
 ) -> Evaluation:
     """Fit and score one model on every fold, recording the run behind each.
@@ -87,7 +87,10 @@ def evaluate(
     fitted state into the next, which is the same leak as sharing subjects,
     arrived at by a different route.
     """
-    labels = table.binary(positive)
+    # ``positive=None`` means the labels are the answer. Sleep staging is five
+    # classes and folding it into one-versus-rest would report a different
+    # problem from the one being solved.
+    labels = table.binary(positive) if positive is not None else table.labels
     folds: list[Scores] = []
     runs: list[TrainingRun] = []
     skipped: list[str] = []

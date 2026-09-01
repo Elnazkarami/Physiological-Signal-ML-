@@ -34,11 +34,16 @@ def main() -> None:
 
     table = FeatureTable.load(args.table)
     print(table.summary())
-    positive = table.binary(args.positive)
-    share = positive.mean() * 100
-    print(
-        f"binary {args.positive} task: {positive.sum()} positive / {len(positive)} ({share:.1f}%)"
-    )
+    multiclass = args.positive == "none"
+    if multiclass:
+        print(f"{len(table.counts())}-class task: {table.counts()}")
+    else:
+        positive = table.binary(args.positive)
+        share = positive.mean() * 100
+        print(
+            f"binary {args.positive} task: {positive.sum()} positive / "
+            f"{len(positive)} ({share:.1f}%)"
+        )
     print(f"feature set {table.feature_set_version}, qc policy {table.qc_policy_version}\n")
 
     def splits():
@@ -46,8 +51,14 @@ def main() -> None:
             return group_k_fold(table.subject_ids, folds=args.folds)
         return leave_one_subject_out(table.subject_ids)
 
+    # Area under the curve and the calibration measures are two-class
+    # quantities. A five-stage problem is reported the way its field reports
+    # it: agreement corrected for chance, and per-stage recall underneath.
     header = (
-        f"{'model':28} {'bal.acc':>13}   {'F1':>5}   {'AUC':>5}   "
+        f"{'model':28} {'bal.acc':>13}   {'kappa':>13}   {'acc':>5}   {'F1':>5}   "
+        f"{'worst':>5}"
+        if multiclass
+        else f"{'model':28} {'bal.acc':>13}   {'F1':>5}   {'AUC':>5}   "
         f"{'PR-AUC':>5}   {'Brier':>5}   {'ECE':>5}   {'worst':>5}"
     )
     print(header)
@@ -60,10 +71,25 @@ def main() -> None:
     results = {}
     for name in chosen:
         result = evaluate(
-            table, available[name], splits(), model_name=name, positive=args.positive
+            table,
+            available[name],
+            splits(),
+            model_name=name,
+            positive=None if multiclass else args.positive,
         )
         results[name] = result
-        print(result.line(), flush=True)
+        if multiclass:
+            s = result.summary
+            print(
+                f"{name:28} {s['balanced_accuracy_mean']:.3f} "
+                f"±{s['balanced_accuracy_sd']:.3f}   {s['kappa_mean']:.3f} "
+                f"±{s['kappa_sd']:.3f}   {s['accuracy_mean']:.3f}   "
+                f"{s['f1_macro_mean']:.3f}   "
+                f"{s.get('worst_subject_balanced_accuracy', float('nan')):.3f}",
+                flush=True,
+            )
+        else:
+            print(result.line(), flush=True)
 
     unscored = sorted({s for r in results.values() for s in r.skipped})
     if unscored:
@@ -71,6 +97,17 @@ def main() -> None:
             f"\nnot scored: {', '.join(unscored)} -- one side of the fold held a "
             "single class, so balanced accuracy is undefined there"
         )
+
+    if multiclass:
+        print("\nper-stage recall")
+        for name, result in results.items():
+            found = {
+                k[len("recall_") :]: v
+                for k, v in sorted(result.summary.items())
+                if k.startswith("recall_")
+            }
+            shown = "  ".join(f"{k} {v:.3f}" for k, v in found.items())
+            print(f"{name:28} {shown}")
 
     print("\nper-subject balanced accuracy")
     per_model = {}

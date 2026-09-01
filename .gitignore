@@ -13,3 +13,7 @@ dist/
 
 # built feature tables
 *.npz
+
+# datasets and documents: never in the repository
+*.zip
+*.docx

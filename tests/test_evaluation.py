@@ -448,3 +448,121 @@ def test_an_evaluation_with_nothing_scorable_raises():
             leave_one_subject_out(made.subject_ids),
             model_name="logistic",
         )
+
+
+# ── more than two classes ───────────────────────────────────────────────────
+
+
+def staged(rows_per_subject: int = 200, seed: int = 0) -> FeatureTable:
+    """A five-class cohort shaped like a night: one stage dominates."""
+    rng = np.random.default_rng(seed)
+    names = ["N1", "N2", "N3", "REM", "W"]
+    shares = [0.06, 0.45, 0.15, 0.18, 0.16]
+    values, subjects, labels, starts = [], [], [], []
+    for subject in SUBJECTS:
+        drawn = rng.choice(len(names), size=rows_per_subject, p=shares)
+        for i, which in enumerate(drawn):
+            values.append(rng.normal(float(which) * 1.5, 0.7, 2))
+            subjects.append(subject)
+            labels.append(names[which])
+            starts.append(i * 30.0)
+    return FeatureTable(
+        feature_names=("a", "b"),
+        values=np.array(values),
+        subjects=np.array(subjects),
+        labels=np.array(labels),
+        window_ids=tuple(f"e{i}" for i in range(len(values))),
+        window_starts=np.array(starts, dtype=float),
+        feature_set_version="test-1",
+        qc_policy_version="test-1",
+    )
+
+
+def test_agreement_by_chance_scores_zero_however_uneven_the_classes():
+    """Kappa is why sleep staging is not reported in accuracy: a constant
+    answer on a night that is 45% one stage is 45% accurate."""
+    truth = np.array(["N2"] * 45 + ["W"] * 20 + ["REM"] * 18 + ["N3"] * 12 + ["N1"] * 5)
+    constant = np.full(truth.size, "N2")
+    got = score(truth, constant)
+    assert got.accuracy == pytest.approx(0.45)
+    assert got.kappa == pytest.approx(0.0, abs=1e-9)
+    assert got.balanced_accuracy == pytest.approx(0.2)
+
+
+def test_perfect_agreement_scores_one():
+    truth = np.array(["N1", "N2", "N3", "REM", "W"] * 10)
+    assert score(truth, truth).kappa == pytest.approx(1.0)
+
+
+def test_the_share_of_the_commonest_class_is_what_a_constant_answer_scores():
+    """Two classes named W and N2 are binary, and `truth == 1` is false for
+    every row of them -- which reported a constant-answer rate of zero."""
+    named = np.array(["N2"] * 45 + ["W"] * 55)
+    assert score(named, named).positive_rate == pytest.approx(0.55)
+
+    five = np.array(["N2"] * 45 + ["W"] * 20 + ["REM"] * 18 + ["N3"] * 12 + ["N1"] * 5)
+    assert score(five, five).positive_rate == pytest.approx(0.45)
+
+    # A 0/1 problem still reports the positive share, not the commonest.
+    binary = np.array([0] * 78 + [1] * 22)
+    assert score(binary, binary).positive_rate == pytest.approx(0.22)
+
+
+def test_recall_is_reported_for_every_stage_not_only_the_average():
+    """A macro average hides which stage a model cannot see, and it is
+    nearly always N1."""
+    truth = np.array(["N1"] * 10 + ["N2"] * 10)
+    predicted = np.array(["N2"] * 10 + ["N2"] * 10)  # never says N1
+    got = score(truth, predicted)
+    assert got.per_class["N1"] == pytest.approx(0.0)
+    assert got.per_class["N2"] == pytest.approx(1.0)
+    assert got.labels == ("N1", "N2")
+
+
+def test_the_confusion_matrix_can_be_read_because_its_order_is_recorded():
+    truth = np.array(["W", "W", "N2", "N2"])
+    predicted = np.array(["W", "N2", "N2", "N2"])
+    got = score(truth, predicted)
+    order = {name: i for i, name in enumerate(got.labels)}
+    assert got.confusion[order["W"]][order["N2"]] == 1, "one wake epoch called N2"
+    assert got.confusion[order["N2"]][order["N2"]] == 2
+
+
+def test_two_class_metrics_are_absent_rather_than_wrong_on_five_classes():
+    truth = np.array(["N1", "N2", "N3", "REM", "W"] * 4)
+    got = score(truth, truth, np.linspace(0, 1, truth.size))
+    assert got.roc_auc is None
+    assert got.brier is None
+    assert got.ece is None
+
+
+def test_an_evaluation_can_score_the_labels_as_they_are():
+    """positive=None: five stages, not one-versus-rest."""
+    made = staged()
+    folds = list(leave_one_subject_out(made.subject_ids))
+    result = evaluate(made, MODELS["logistic"], folds, model_name="logistic", positive=None)
+    assert result.summary["kappa_mean"] > 0.5
+    assert set(result.folds[0].labels) == {"N1", "N2", "N3", "REM", "W"}
+    assert "recall_N1" in result.summary
+
+
+def test_a_constant_model_on_five_classes_scores_a_fifth_and_no_agreement():
+    made = staged()
+    folds = list(leave_one_subject_out(made.subject_ids))
+    result = evaluate(made, MODELS["majority"], folds, model_name="majority", positive=None)
+    assert result.summary["balanced_accuracy_mean"] == pytest.approx(0.2, abs=0.01)
+    assert result.summary["kappa_mean"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_an_ablation_reports_agreement_when_there_is_no_area_under_a_curve():
+    made = staged(rows_per_subject=120)
+    result = ablate(
+        made,
+        MODELS["logistic"],
+        lambda: leave_one_subject_out(made.subject_ids),
+        model_name="logistic",
+        groups={"first": ("a",), "second": ("b",)},
+        positive=None,
+    )
+    assert "kappa" in result.table()
+    assert "AUC" not in result.table()

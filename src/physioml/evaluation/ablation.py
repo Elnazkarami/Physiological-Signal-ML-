@@ -41,6 +41,19 @@ def signal_groups() -> dict[str, tuple[str, ...]]:
     return groups
 
 
+def channel_groups() -> dict[str, tuple[str, ...]]:
+    """The sleep recording's channels, each as one group.
+
+    Two electroencephalogram derivations, an electro-oculogram and chin
+    electromyography. The question this answers is the one a montage decision
+    turns on: how much of the scoring survives with one electrode pair, and
+    which of the two it should be.
+    """
+    from physioml.neural.features import FEATURES_BY_CHANNEL
+
+    return dict(FEATURES_BY_CHANNEL)
+
+
 def device_groups() -> dict[str, tuple[str, ...]]:
     """The two devices, each as one group.
 
@@ -93,8 +106,13 @@ class Ablation:
 
     def table(self) -> str:
         width = max(22, max(len(s) for s in self.signals) + 9)
+        # Area under the curve is a two-class measure. On a five-stage problem
+        # it is absent, and the column that belongs there is the one the task
+        # is reported in -- agreement corrected for chance.
+        second = "roc_auc_mean" if "roc_auc_mean" in self.full.summary else "kappa_mean"
+        title = "AUC" if second == "roc_auc_mean" else "kappa"
         header = (
-            f"{'features':{width}} {'n':>3}   {'bal.acc':>13}   {'AUC':>5}   "
+            f"{'features':{width}} {'n':>3}   {'bal.acc':>13}   {title:>5}   "
             f"{'worst':>5}   {'vs all':>7}"
         )
         lines = [header, "-" * len(header)]
@@ -106,7 +124,7 @@ class Ablation:
                 f"{name:{width}} {len(run.feature_names):>3}   "
                 f"{summary['balanced_accuracy_mean']:.3f} "
                 f"±{summary['balanced_accuracy_sd']:.3f}   "
-                f"{summary['roc_auc_mean']:.3f}   "
+                f"{summary.get(second, float('nan')):.3f}   "
                 f"{summary['balanced_accuracy_min']:.3f}   "
                 f"{delta:+7.3f}"
             )
@@ -129,7 +147,7 @@ def ablate(
     model_name: str,
     groups: Mapping[str, Sequence[str]] | None = None,
     signals: Sequence[str] | None = None,
-    positive: str = "stress",
+    positive: str | None = "stress",
 ) -> Ablation:
     """Score a model on the full feature set, on each signal, and without each.
 

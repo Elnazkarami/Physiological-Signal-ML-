@@ -15,7 +15,12 @@ from __future__ import annotations
 import argparse
 
 from physioml.dataset import FeatureTable
-from physioml.evaluation.ablation import ablate, device_groups, signal_groups
+from physioml.evaluation.ablation import (
+    ablate,
+    channel_groups,
+    device_groups,
+    signal_groups,
+)
 from physioml.evaluation.splits import group_k_fold, leave_one_subject_out
 from physioml.models.classical import MODELS
 
@@ -24,13 +29,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("table", help="path to the .npz written by build_features.py")
     parser.add_argument("--model", default="logistic", choices=sorted(MODELS))
-    parser.add_argument("--positive", default="stress", help="positive class")
+    parser.add_argument(
+        "--positive",
+        default="stress",
+        help="positive class, or 'none' to score every label as its own class",
+    )
     parser.add_argument("--folds", type=int, help="use k-fold instead of leave-one-out")
     parser.add_argument(
         "--by",
         default="signal",
-        choices=("signal", "device"),
-        help="ablate one sensor at a time, or one whole device at a time",
+        choices=("signal", "device", "channel"),
+        help="ablate one sensor, one whole device, or one recording channel",
     )
     args = parser.parse_args()
 
@@ -48,8 +57,12 @@ def main() -> None:
         MODELS[args.model],
         splits,
         model_name=args.model,
-        groups=device_groups() if args.by == "device" else signal_groups(),
-        positive=args.positive,
+        groups={
+            "device": device_groups,
+            "channel": channel_groups,
+            "signal": signal_groups,
+        }[args.by](),
+        positive=None if args.positive == "none" else args.positive,
     )
     print(result.table())
     print(f"\nbalanced accuracy lost when each {args.by} is removed:")

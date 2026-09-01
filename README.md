@@ -7,10 +7,10 @@ layer for the [Clinical Data Fabric System](https://github.com/Elnazkarami/clini
 traceable from the model output all the way back to the exact sensor windows,
 transformations, features, model version, and source observations that produced it?
 
-> **Status: both peripheral devices working end to end.** Provenance spine, quality
-> control and features for a wrist band and a chest strap, subject-wise evaluation,
-> calibration, ablation by sensor and by device, and a closed cascade with CDFS. EEG is
-> not built. Every claim below is either
+> **Status: peripheral and neural, both working end to end.** Provenance spine; quality
+> control and features for a wrist band, a chest strap and a sleep montage; subject-wise
+> evaluation, calibration and personalisation; ablation by sensor, by device and by
+> electrode; and a closed cascade with CDFS. Two datasets, two tasks, one pipeline. Every claim below is either
 > implemented and covered by a test, or listed under *Not built* — nothing here is
 > aspirational description of code that does not exist.
 
@@ -33,7 +33,9 @@ CDFS  ◀──  derived ML facts + model provenance + source lineage
 ## What is built
 
 `physioml.core` — the provenance spine — and `physioml.cdfs` — the client that reads
-observations and writes predictions back.
+observations and writes predictions back. Around them, `physioml.io` reads the two archive
+formats, `physioml.peripheral` and `physioml.neural` turn signals into features, and
+`physioml.evaluation` scores them subject by subject.
 
 | Type | Carries |
 | --- | --- |
@@ -108,9 +110,16 @@ every feature naming W is stale."* Had rejection minted a new identifier, featur
 computed while the window was still considered good would point at an identifier nothing
 holds any more.
 
-## The dataset
+## The datasets
 
-WESAD — 15 subjects, 24.1 hours of chest and wrist physiology, read straight out of the
+Two, deliberately. WESAD carries the peripheral work and Sleep-EDF the neural work, and
+the same pipeline reads both — the same windowing, the same quality-control shape, the
+same subject-wise evaluation, the same tables. A second dataset is the cheapest test of
+whether any of that generalised or was written for one file format.
+
+### WESAD — wrist and chest, awake
+
+15 subjects, 24.1 hours of chest and wrist physiology, read straight out of the
 2 GB archive without unpacking it. Unpacked it is roughly 17 GB, and a pipeline that
 needs that much scratch space before it computes anything is one people run once.
 
@@ -132,6 +141,27 @@ durations.
 transitions plus the recovery periods WESAD's own guide says to ignore, and windows that
 straddle a boundary. Those are produced and marked rather than dropped, so how many were
 lost stays countable.
+
+### Sleep-EDF Expanded — a scalp montage, asleep
+
+20 subjects of the Sleep Cassette cohort, one night each, in European Data Format. Read
+without a toolbox: EDF is a header of fixed-width ASCII fields followed by interleaved
+16-bit records, and each file is memory-mapped so that asking for one channel touches only
+its own columns rather than loading a night of polysomnography to reach it.
+
+| | epochs | share |
+| --- | ---: | ---: |
+| N2 | 9,200 | 44.6% |
+| REM | 3,756 | 18.2% |
+| wake | 3,449 | 16.7% |
+| N3 | 2,981 | 14.5% |
+| N1 | 1,240 | 6.0% |
+| **scored and kept** | **20,626** | **35.8%** |
+| trimmed | 36,950 | recorder running before bed and after waking |
+| unscored | 3,013 | movement time and epochs nobody scored |
+
+30-second epochs, because that is what the scorer used. Consecutive rows share no signal,
+which is the one thing that is *easier* here than on WESAD.
 
 ## Features, and one that was measured and removed
 
@@ -441,11 +471,104 @@ reported as one minute per window — 107 minutes for a session that ran for 60.
 windows overlap by 55 of their 60 seconds, so the cost is the union of what they cover,
 not the sum of their lengths, and the cost is the whole point of the method.
 
+## Sleep staging, on a second dataset
+
+WESAD has no electroencephalography, so the neural half of this project had nothing to be
+validated against — and code validated against nothing is what this repository exists to
+argue with. [Sleep-EDF Expanded](https://physionet.org/content/sleep-edfx/1.0.0/) supplies
+it: whole nights of polysomnography, two EEG derivations at 100 Hz, an electro-oculogram,
+chin electromyography, and a hypnogram an expert scored in 30-second epochs.
+
+Twenty subjects, one night each. The epochs are the scorer's epochs, so unlike the
+peripheral tables **consecutive rows share no signal at all** — the overlap that makes
+every within-subject split delicate on WESAD does not exist here.
+
+Three properties of the data are handled rather than assumed. **The recording is far
+longer than the sleep**: a Sleep Cassette night runs about twenty hours, and the first
+file opens with eight and a half hours of a single annotation saying the subject is awake.
+Left alone, wake is three-quarters of the epochs and a classifier answering "awake" scores
+extremely well; trimming to the sleep period plus 30 minutes cuts 36,950 epochs of 57,576
+and leaves a realistic distribution. **Stages are scored under Rechtschaffen and Kales**,
+which separates 3 from 4; they are merged into N3 as modern practice does. **Both nights
+of a subject are one subject** — treating them as two people would put the same person on
+both sides of every split, the leak the whole evaluation exists to prevent, arriving
+through the file naming.
+
+20,626 epochs, 48 features, five stages — N2 45%, REM 18%, W 17%, N3 14%, N1 6%.
+
+| model | bal. accuracy | Cohen's κ | accuracy | macro F1 | worst subject |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| majority class | 0.200 ±0.000 | 0.000 | 0.440 | 0.121 | 0.200 |
+| logistic regression | **0.737 ±0.104** | 0.662 ±0.148 | 0.748 | 0.686 | 0.420 |
+| random forest | 0.725 ±0.070 | **0.710 ±0.090** | 0.793 | 0.702 | 0.534 |
+| gradient boosting | 0.714 ±0.078 | 0.708 ±0.102 | **0.794** | 0.699 | 0.540 |
+
+Sleep staging is reported in Cohen's κ, not accuracy — the stages are unevenly distributed
+enough that raw agreement flatters everything, which the majority row makes concrete at
+44% accuracy and κ of exactly zero. **κ = 0.710 with 79% accuracy sits inside the range
+published for feature-based automatic staging under subject-wise validation**, which is
+the check that matters here: the pipeline is new, the task is not, and a number far outside
+that range would mean something was wrong rather than something was discovered.
+
+### Which model is better depends on which stage you care about
+
+| per-stage recall | N1 | N2 | N3 | REM | W |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| logistic regression | **0.562** | 0.725 | 0.909 | 0.716 | 0.773 |
+| random forest | 0.303 | 0.815 | 0.886 | 0.761 | 0.858 |
+| gradient boosting | 0.288 | 0.851 | 0.867 | 0.710 | 0.855 |
+
+**Logistic regression finds N1 nearly twice as often as random forest and agrees with the
+scorer less overall.** That is the whole disagreement between the two columns above: κ
+rewards agreeing with a scorer whose night is 45% N2, and balanced accuracy rewards seeing
+the stage that is 6% of it. Neither is the right answer in general; they are answers to
+different questions, and reporting only one would hide that there was a choice.
+
+N1 is the stage every automatic scorer fails on, and the confusion says why it is hard
+rather than which model is bad. Of the N1 epochs random forest gets wrong, **31% go to REM
+and 21% to wake** — N1 is the transition into sleep and shares its theta with REM, and it
+is also the stage human scorers agree on least. A model that confuses N1 with REM and wake
+is failing the way the problem fails.
+
+### One electrode gets most of the way
+
+The montage question, answered on identical rows and folds with random forest:
+
+| channel | features | bal. accuracy | κ | worst subject |
+| --- | ---: | ---: | ---: | ---: |
+| everything | 48 | 0.725 ±0.070 | 0.710 | 0.534 |
+| **EEG Fpz-Cz alone** | 20 | **0.683 ±0.088** | **0.657** | 0.392 |
+| EEG Pz-Oz alone | 20 | 0.663 ±0.074 | 0.625 | 0.530 |
+| EOG horizontal alone | 5 | 0.637 ±0.071 | 0.547 | 0.446 |
+| chin EMG alone | 3 | 0.269 ±0.044 | 0.094 | 0.190 |
+| without Fpz-Cz | 28 | 0.695 ±0.076 | 0.664 | 0.518 |
+| without Pz-Oz | 28 | 0.710 ±0.090 | 0.682 | 0.452 |
+| without EOG | 43 | 0.712 ±0.075 | 0.694 | 0.547 |
+| without chin EMG | 45 | 0.725 ±0.071 | 0.710 | 0.527 |
+
+**A single frontal derivation reaches κ 0.657 against 0.710 for the whole montage** — 92%
+of the agreement from one electrode pair, which is the finding a wearable would be
+designed around. Fpz-Cz beats Pz-Oz on both measures and contributes twice as much on
+removal, consistent with it being the derivation single-channel staging is usually built
+on.
+
+Two channels earn less than they look like they should. The electro-oculogram alone
+reaches κ 0.547, which is far above chance for five features — but removing it from the
+full set costs 0.012, because the EEG channels already carry most of what it says. And
+**chin electromyography contributes nothing at all**: alone it is barely above chance
+(κ 0.094 against 0.000), and removing it leaves the model unchanged. Muscle atonia is half
+the textbook definition of REM, so that deserves an explanation rather than a shrug: in
+these files the EMG is stored at 1 Hz as an envelope, giving 30 samples per epoch and
+three crude amplitude features. The finding is about this recording of that channel, not
+about chin tone.
+
 ## Not built
 
-EEG preprocessing, montage capability, features and channel ablation ·
-frequency-domain heart-rate variability, which needs windows longer than
-the minute these are · deep architectures, which the ablations do not yet justify.
+Sequence models, which is where sleep staging gains most — a scorer reads the epochs
+before and after, and every model here sees one epoch alone · frequency-domain heart-rate
+variability, which needs windows longer than the minute these are · deep architectures,
+which the ablations do not yet justify · the Sleep Telemetry cohort, and the 58 Sleep
+Cassette subjects not downloaded here.
 
 ## Install
 
@@ -470,6 +593,19 @@ python scripts/build_features.py ~/Downloads/WESAD.zip wesad_fused.npz --device 
 python scripts/ablate.py wesad_fused.npz --by device
 python scripts/personalise.py wesad_features.npz
 ```
+
+For the sleep recordings — the `sleep-cassette` files from
+[Sleep-EDF Expanded](https://physionet.org/content/sleep-edfx/1.0.0/):
+
+```bash
+python scripts/build_sleep_features.py ~/sleep-edf sleep_features.npz
+python scripts/evaluate.py sleep_features.npz --positive none
+python scripts/ablate.py sleep_features.npz --by channel --positive none \
+    --model random_forest
+```
+
+About 45 seconds to build 20 nights, and the archive is read in place — the reader
+memory-maps each file and touches only the channels it is asked for.
 
 Roughly 80 seconds to build the features and a couple of minutes to score all five
 models. The archive is read as a stream and never extracted — 2.1 GB compressed against
