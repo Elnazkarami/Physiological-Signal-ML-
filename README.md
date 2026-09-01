@@ -397,15 +397,15 @@ identical rows and identical folds:
 
 | features | n | bal. accuracy | AUC | worst subject |
 | --- | ---: | ---: | ---: | ---: |
-| both devices | 63 | **0.904 ±0.129** | 0.978 | 0.500 |
-| wrist alone | 28 | 0.874 ±0.062 | 0.941 | **0.764** |
-| chest alone | 35 | 0.881 ±0.141 | 0.970 | 0.500 |
+| both devices | 63 | **0.897 ±0.128** | 0.979 | 0.500 |
+| wrist alone | 28 | 0.884 ±0.067 | 0.947 | **0.707** |
+| chest alone | 35 | 0.882 ±0.139 | 0.974 | 0.500 |
 
-**The second device raises the average and makes the model less reliable for the person it
-serves worst.** Balanced accuracy goes up 0.029, the fold-to-fold spread doubles, and the
-worst subject falls from 0.764 to chance. For a cohort statistic that is an improvement.
-For something a person wears it is close to the opposite, and the mean alone would have
-reported it as a straightforward win.
+**The second device buys almost nothing on average and makes the model far less reliable
+for the person it serves worst.** Balanced accuracy goes up 0.013, the fold-to-fold spread
+doubles, and the worst subject falls from 0.707 to chance. For a cohort statistic that is
+a small improvement. For something a person wears it is close to the opposite, and the
+mean alone would have reported it as a win.
 
 Per signal, the ranking is the same one the wrist found, more so:
 
@@ -414,13 +414,14 @@ Per signal, the ranking is the same one the wrist found, more so:
 | **chest accelerometer** | 8 | **0.915 ±0.084** | 0.969 | 0.729 |
 | wrist accelerometer | 8 | 0.857 ±0.070 | 0.928 | 0.668 |
 | chest electrocardiogram | 7 | 0.797 ±0.136 | 0.953 | 0.510 |
-| chest electrodermal | 9 | 0.738 ±0.146 | 0.846 | 0.438 |
+| chest electrodermal | 9 | 0.754 ±0.146 | 0.844 | 0.498 |
+| wrist electrodermal | 9 | 0.818 ±0.123 | 0.877 | 0.533 |
 | chest muscle activity | 3 | 0.673 ±0.163 | 0.716 | 0.349 |
 | chest respiration | 3 | 0.659 ±0.078 | 0.691 | 0.579 |
 | chest temperature | 5 | 0.585 ±0.125 | 0.721 | 0.431 |
 
-**The chest accelerometer alone beats all 63 features together** — 0.915 against 0.904,
-with a better worst subject and half the spread. It is the single best sensor in this
+**The chest accelerometer alone beats all 63 features together** — 0.915 against 0.897,
+with a better worst subject (0.729) and two-thirds the spread. It is the single best sensor in this
 dataset, and it is a posture sensor. The stress condition has participants standing to
 speak; a strap on the torso reads that more directly than a band on the wrist does.
 
@@ -429,15 +430,14 @@ easier. With movement removed from both devices:
 
 | physiology only | n | bal. accuracy | worst subject |
 | --- | ---: | ---: | ---: |
-| both devices | 47 | 0.871 ±0.135 | 0.500 |
-| chest only | 27 | 0.839 ±0.158 | 0.495 |
-| wrist only | 20 | 0.834 ±0.110 | 0.650 |
+| both devices | 47 | 0.873 ±0.131 | 0.500 |
+| chest only | 27 | 0.835 ±0.157 | 0.499 |
+| wrist only | 20 | 0.837 ±0.108 | 0.643 |
 
 Adding a chest strap's worth of electrocardiogram, respiration and muscle activity to a
-wrist band buys **0.037 balanced accuracy and costs 0.150 on the worst subject**. The
-electrocardiogram is the largest single contributor on removal (+0.021), so the cardiac
-features do carry signal — they are just more subject-specific than the wrist's, which is
-what an inter-individual SDNN range of 40 to 100 ms would predict.
+wrist band buys **0.036 balanced accuracy and costs 0.143 on the worst subject**. The
+cardiac features do carry signal — they are just more subject-specific than the wrist's,
+which is what an inter-individual SDNN range of 40 to 100 ms would predict.
 
 ### One subject is missing from that table
 
