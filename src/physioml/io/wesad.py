@@ -18,6 +18,7 @@ to hand it the interpreter.
 
 from __future__ import annotations
 
+import hashlib
 import pickle
 import zipfile
 from dataclasses import dataclass
@@ -41,6 +42,11 @@ WRIST_HZ: dict[str, float] = {"ACC": 32.0, "BVP": 64.0, "EDA": 4.0, "TEMP": 4.0}
 CHEST_HZ = 700.0
 
 #: WESAD's signal names to the modalities this package models.
+#: Every signal WESAD stores, and what it is. There is no default: a name that
+#: is not here is a signal this reader does not understand, and guessing at one
+#: is how the chest electromyogram became accelerometry -- silently, with a
+#: recording that then claimed to be something it was not for the rest of its
+#: life in the provenance chain.
 MODALITIES: dict[str, Modality] = {
     "ACC": Modality.ACC,
     "BVP": Modality.BVP,
@@ -48,8 +54,32 @@ MODALITIES: dict[str, Modality] = {
     "TEMP": Modality.TEMP,
     "Temp": Modality.TEMP,
     "ECG": Modality.ECG,
+    "EMG": Modality.EMG,
     "Resp": Modality.RESP,
 }
+
+
+def modality_of(name: str) -> Modality:
+    """What a WESAD signal name is, or an error naming what is known."""
+    try:
+        return MODALITIES[name]
+    except KeyError:
+        raise WESADError(
+            f"unknown signal {name!r}; this reader understands {sorted(MODALITIES)}"
+        ) from None
+
+
+def _digest(array: np.ndarray) -> str:
+    """A checksum of the samples themselves.
+
+    A recording's identity is built from its metadata -- subject, device, rate,
+    duration -- and every one of those can stay the same while the samples
+    change. Without this, a corrected export and the export it corrects are the
+    same recording, and nothing downstream can tell that anything moved.
+    """
+    contiguous = np.ascontiguousarray(array)
+    return hashlib.sha256(contiguous.tobytes()).hexdigest()
+
 
 #: WESAD carries no acquisition timestamps. Recordings are placed on a fixed
 #: epoch so identifiers are reproducible; nothing downstream reads wall-clock
@@ -157,13 +187,14 @@ class WESAD:
             name: Recording.create(
                 study_id=self.study_id,
                 subject_id=subject_id,
-                modality=MODALITIES.get(name, Modality.ACC),
+                modality=modality_of(name),
                 sampling_rate_hz=rates[name],
                 start_time=EPOCH,
                 duration_seconds=duration,
                 channels=_channels(name, array),
                 device_name="Empatica E4" if device == "wrist" else "RespiBAN",
                 source_uri=f"{self.archive.name}!{member}",
+                source_hash=_digest(array),
                 metadata={"wesad_signal": name, "device": device},
             )
             for name, array in signals.items()

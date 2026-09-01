@@ -32,7 +32,11 @@ import numpy as np
 
 from physioml.core.feature import Feature
 from physioml.core.window import QCStatus
-from physioml.peripheral.preprocessing import DEFAULT_PREPROCESSING, prepare_bvp
+from physioml.peripheral.preprocessing import (
+    DEFAULT_PREPROCESSING,
+    Preprocessing,
+    prepare_bvp,
+)
 from physioml.peripheral.qc import DEFAULT_POLICY, QCPolicy, QCResult, _pulse_peaks
 
 if TYPE_CHECKING:
@@ -75,7 +79,10 @@ def _f(
 
 
 def bvp_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = DEFAULT_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = DEFAULT_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """Rate and variability from a photoplethysmogram.
 
@@ -106,7 +113,7 @@ def bvp_features(
     # Filtered first. On the raw signal the dicrotic notch is counted as a beat
     # and every variability measure below comes out several times what a human
     # produces -- plausibly enough to be believed.
-    signal = prepare_bvp(samples, rate, DEFAULT_PREPROCESSING)
+    signal = prepare_bvp(samples, rate, preprocessing)
     peaks = _pulse_peaks(signal, rate, policy)
     if peaks.size < 3:
         return {}
@@ -125,8 +132,34 @@ def bvp_features(
 # ── electrodermal activity ───────────────────────────────────────────────────
 
 
+def _tonic(signal: np.ndarray, rate: float, seconds: float = 4.0) -> np.ndarray:
+    """The slow component of an electrodermal signal, without edge artifacts.
+
+    A moving average taken with ``mode="same"`` pads the ends with zeros, so
+    the tonic level dives towards zero in the first and last two seconds and
+    the phasic residual spikes there. Measured on a perfectly flat signal that
+    produced exactly one skin-conductance response per minute -- an event
+    manufactured by the padding, in a signal with no events in it at all, and
+    one that would have been counted as physiology for every window of every
+    subject.
+
+    Padding with the edge value instead means the average at the boundary is
+    taken over the level that is actually there.
+    """
+    window = max(int(rate * seconds), 1)
+    if signal.size < window:
+        return np.full_like(signal, float(np.mean(signal)))
+    half = window // 2
+    padded = np.pad(signal, (half, window - 1 - half), mode="edge")
+    kernel = np.ones(window) / window
+    return np.convolve(padded, kernel, mode="valid")
+
+
 def eda_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = DEFAULT_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = DEFAULT_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """Tonic level, phasic response, and the shape of the minute.
 
@@ -141,9 +174,7 @@ def eda_features(
         return {}
 
     seconds = signal.size / rate
-    window = max(int(rate * 4), 1)
-    kernel = np.ones(window) / window
-    tonic = np.convolve(signal, kernel, mode="same")
+    tonic = _tonic(signal, rate)
     phasic = signal - tonic
 
     # A skin-conductance response: a rise above a threshold, counted once.
@@ -173,7 +204,10 @@ def eda_features(
 
 
 def temp_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = DEFAULT_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = DEFAULT_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """Level and direction.
 
@@ -199,7 +233,10 @@ def temp_features(
 
 
 def acc_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = DEFAULT_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = DEFAULT_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """How much the person moved.
 
@@ -227,10 +264,16 @@ def acc_features(
     }
 
 
-#: Every extractor takes the same arguments, whether or not it needs the policy.
+#: Every extractor takes the same arguments, whether or not it needs them all.
 #: A dispatch table whose entries disagree about their signature forces the
 #: caller to know which is which, and to say so in casts.
-Extractor = Callable[[np.ndarray, float, QCPolicy], dict[str, float]]
+#:
+#: The preprocessing configuration is one of those arguments because the pulse
+#: extractor filters before it measures. Reaching for the module default
+#: instead let a window record one preprocessing identity while the features
+#: were computed under another -- the provenance and the arithmetic disagreeing
+#: with nothing to notice it.
+Extractor = Callable[[np.ndarray, float, QCPolicy, Preprocessing], dict[str, float]]
 
 EXTRACTORS: dict[str, Extractor] = {
     "BVP": bvp_features,
@@ -316,7 +359,7 @@ UNITS = {
 
 def extract(
     epoch: Epoch,
-    qc: QCResult | None = None,
+    qc: QCResult,
     policy: QCPolicy = DEFAULT_POLICY,
     *,
     extractors: dict[str, Extractor] | None = None,
@@ -324,6 +367,12 @@ def extract(
     feature_set_version: str = FEATURE_SET_VERSION,
 ) -> list[Feature]:
     """Every feature computable from one epoch, honouring quality control.
+
+    ``qc`` is required rather than optional. It was optional, which made the
+    order the README promises -- window, judge, then measure -- something a
+    caller could skip by accident and get features out of a signal nothing had
+    looked at. A verdict is cheap to compute and there is no case where
+    extracting without one is the right thing.
 
     Signals quality control rejected are skipped, so their features are absent
     rather than wrong. A window flagged only with a warning is computed: motion
@@ -336,12 +385,12 @@ def extract(
         extractor = table.get(name)
         if extractor is None:
             continue
-        if qc is not None and qc.statuses.get(name, QCStatus.VALID) is QCStatus.REJECTED:
+        if qc.statuses.get(name, QCStatus.VALID) is QCStatus.REJECTED:
             continue
 
         window = epoch.windows[name]
         rate = window.sampling_rate_hz
-        values = extractor(samples, rate, policy)
+        values = extractor(samples, rate, policy, epoch.preprocessing)
         made.extend(
             _f(
                 key,

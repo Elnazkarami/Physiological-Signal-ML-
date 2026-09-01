@@ -32,6 +32,10 @@ import numpy as np
 
 from physioml.core.window import SignalWindow
 from physioml.io.wesad import LABEL_HZ, SubjectData, condition_of
+from physioml.peripheral.preprocessing import (
+    DEFAULT_PREPROCESSING,
+    Preprocessing,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,16 @@ class Epoch:
     samples: dict[str, np.ndarray]
     """Views into the subject's arrays — slicing copies nothing."""
 
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING
+    """The filter settings these windows were cut under.
+
+    Carried on the epoch rather than looked up later, so the configuration a
+    window records in its identity is the same object the extractor filters
+    with. They were separate before: windows defaulted to an empty
+    preprocessing identity while the pulse extractor applied the module
+    default internally, which meant the provenance and the arithmetic could
+    disagree without anything noticing."""
+
     @property
     def labelled(self) -> bool:
         return self.label is not None
@@ -63,7 +77,7 @@ def epochs(
     *,
     length_seconds: float = 60.0,
     stride_seconds: float = 5.0,
-    preprocessing_run_id: str = "",
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> list[Epoch]:
     """Cut one subject into overlapping intervals.
 
@@ -84,7 +98,7 @@ def epochs(
     index = 0
     start = 0.0
     while start + length_seconds <= total:
-        made.append(_epoch(data, index, start, length_seconds, preprocessing_run_id))
+        made.append(_epoch(data, index, start, length_seconds, preprocessing))
         index += 1
         start += stride_seconds
     return made
@@ -95,7 +109,7 @@ def _epoch(
     index: int,
     start: float,
     length: float,
-    preprocessing_run_id: str,
+    preprocessing: Preprocessing,
 ) -> Epoch:
     label_slice = data.labels[round(start * LABEL_HZ) : round((start + length) * LABEL_HZ)]
     label = condition_of(label_slice)
@@ -117,7 +131,7 @@ def _epoch(
             start_time=recording.start_time + timedelta(seconds=start),
             sampling_rate_hz=rate,
             channel_ids=recording.channels,
-            preprocessing_run_id=preprocessing_run_id,
+            preprocessing_run_id=preprocessing.run_id,
             label=label,
         )
         samples[name] = array[first:last]
@@ -130,6 +144,7 @@ def _epoch(
         label=label,
         windows=windows,
         samples=samples,
+        preprocessing=preprocessing,
     )
 
 

@@ -31,13 +31,20 @@ from physioml.peripheral.features import (
     eda_features,
     temp_features,
 )
-from physioml.peripheral.preprocessing import bandpass, dominant_rate_bpm
+from physioml.peripheral.preprocessing import (
+    DEFAULT_PREPROCESSING,
+    Preprocessing,
+    bandpass,
+    dominant_rate_bpm,
+)
 from physioml.peripheral.qc import (
     DISCONTINUITY,
+    MISSING,
     MOTION,
     Check,
     QCPolicy,
     QCResult,
+    _missing,
     assess,
     check_acc,
     check_eda,
@@ -234,7 +241,10 @@ def clean_intervals(
 
 
 def ecg_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = CHEST_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = CHEST_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """Rate and variability from the electrocardiogram.
 
@@ -275,7 +285,10 @@ def ecg_features(
 
 
 def resp_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = CHEST_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = CHEST_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """Breathing rate and depth from the inductive band.
 
@@ -343,7 +356,10 @@ def _breathing_rate(samples: np.ndarray, rate: float) -> float | None:
 
 
 def emg_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = CHEST_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = CHEST_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
     """Trapezius muscle activity: amplitude, not spectrum.
 
@@ -377,21 +393,30 @@ def _prefixed(found: dict[str, float]) -> dict[str, float]:
 
 
 def chest_eda_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = CHEST_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = CHEST_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
-    return _prefixed(eda_features(samples, rate, policy))
+    return _prefixed(eda_features(samples, rate, policy, preprocessing))
 
 
 def chest_temp_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = CHEST_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = CHEST_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
-    return _prefixed(temp_features(samples, rate, policy))
+    return _prefixed(temp_features(samples, rate, policy, preprocessing))
 
 
 def chest_acc_features(
-    samples: np.ndarray, rate: float, policy: QCPolicy = CHEST_POLICY
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy = CHEST_POLICY,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
 ) -> dict[str, float]:
-    return _prefixed(acc_features(samples, rate, policy))
+    return _prefixed(acc_features(samples, rate, policy, preprocessing))
 
 
 #: Keyed by the names WESAD gives the chest signals.
@@ -454,7 +479,12 @@ CHEST_FEATURES_BY_SIGNAL: dict[str, tuple[str, ...]] = {
 # ── quality control ──────────────────────────────────────────────────────────
 
 
-def check_ecg(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_ecg(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     """Whether this electrocardiogram can be measured from.
 
     A rate check is not enough on its own and is not enough here either: the
@@ -467,6 +497,8 @@ def check_ecg(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     codes: list[str] = []
     if data.size < int(rate):
         return ["too_short"]
+    if _missing(data):
+        return [MISSING]
 
     if float(np.std(data)) < 1e-6:
         return ["flatline"]
@@ -512,10 +544,17 @@ def check_ecg(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return codes
 
 
-def check_resp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_resp(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     data = np.asarray(samples, dtype=float).ravel()
     if data.size < int(rate * 10):
         return ["too_short"]
+    if _missing(data):
+        return [MISSING]
     if float(np.std(data)) < 1e-6:
         return ["flatline"]
     if _breathing_rate(data, rate) is None:
@@ -523,10 +562,17 @@ def check_resp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return []
 
 
-def check_emg(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_emg(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     data = np.asarray(samples, dtype=float).ravel()
     if data.size < 16:
         return ["too_short"]
+    if _missing(data):
+        return [MISSING]
     if float(np.std(data)) < 1e-9:
         return ["flatline"]
     return []

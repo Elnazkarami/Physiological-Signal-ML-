@@ -31,6 +31,8 @@ import numpy as np
 
 from physioml.core.window import QCStatus
 from physioml.peripheral.preprocessing import (
+    DEFAULT_PREPROCESSING,
+    Preprocessing,
     detect_beats,
     prepare_bvp,
     pulse_concentration,
@@ -70,6 +72,24 @@ SATURATED = "saturated"
 """Accelerometer magnitude beyond the range the device can represent."""
 
 MISSING_AXES = "missing_axes"
+
+MISSING = "missing"
+"""Samples that are not numbers.
+
+Every comparison against NaN is false, so a window of them passes each
+threshold below in turn and is marked valid. It then produces NaN features,
+which are dropped as non-finite during extraction, and the row loses that
+signal with nothing on record saying why. Missing data has to be looked for
+directly rather than caught by a range check."""
+
+
+def _missing(signal: np.ndarray, allowed: float = 0.0) -> bool:
+    """Whether a signal has more non-finite samples than can be tolerated."""
+    if signal.size == 0:
+        return True
+    return float(np.mean(~np.isfinite(signal))) > allowed
+
+
 """Fewer than three axes of accelerometry."""
 
 
@@ -174,7 +194,12 @@ DEFAULT_POLICY = QCPolicy()
 # ── per-modality checks ──────────────────────────────────────────────────────
 
 
-def check_bvp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_bvp(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     """Blood-volume pulse: is there a usable pulse in here?
 
     Clipping and flatline are judged on the raw signal, because they are
@@ -185,6 +210,8 @@ def check_bvp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     """
     raw = np.asarray(samples, dtype=float).ravel()
     codes: list[str] = []
+    if _missing(raw):
+        return [MISSING]
     if raw.size == 0:
         return [FLATLINE]
 
@@ -203,7 +230,7 @@ def check_bvp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
 
     # From here on, the signal as the feature extractor will see it.
     try:
-        signal = prepare_bvp(raw, rate)
+        signal = prepare_bvp(raw, rate, preprocessing)
     except ValueError:
         signal = raw
 
@@ -233,12 +260,19 @@ def check_bvp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return codes
 
 
-def check_eda(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_eda(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     """Electrodermal activity: is the electrode in contact with skin?"""
     signal = np.asarray(samples, dtype=float).ravel()
     codes: list[str] = []
     if signal.size == 0:
         return [FLATLINE]
+    if _missing(signal):
+        return [MISSING]
 
     if float(signal.min()) < 0:
         codes.append(NEGATIVE)
@@ -251,10 +285,17 @@ def check_eda(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return codes
 
 
-def check_temp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_temp(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     """Skin temperature: is the sensor against a person?"""
     signal = np.asarray(samples, dtype=float).ravel()
     codes: list[str] = []
+    if _missing(signal):
+        return [MISSING]
     if signal.size == 0:
         return [FLATLINE]
 
@@ -268,13 +309,20 @@ def check_temp(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return codes
 
 
-def check_acc(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
+def check_acc(
+    samples: np.ndarray,
+    rate: float,
+    policy: QCPolicy,
+    preprocessing: Preprocessing = DEFAULT_PREPROCESSING,
+) -> list[str]:
     """Accelerometry: three axes, and within what the device can represent."""
     array = np.asarray(samples, dtype=float)
     if array.ndim != 2 or array.shape[1] != 3:
         return [MISSING_AXES]
     if array.size == 0:
         return [FLATLINE]
+    if _missing(array):
+        return [MISSING]
 
     codes: list[str] = []
     at_rail = np.isclose(np.abs(array), policy.acc_rail, atol=0.5)
@@ -286,7 +334,10 @@ def check_acc(samples: np.ndarray, rate: float, policy: QCPolicy) -> list[str]:
     return codes
 
 
-Check = Callable[[np.ndarray, float, "QCPolicy"], list[str]]
+Check = Callable[[np.ndarray, float, "QCPolicy", "Preprocessing"], list[str]]
+"""Quality control judges the *filtered* pulse, so it needs the same settings
+the features are computed under. Reaching for the module default here would
+let a window be approved on one signal and measured on another."""
 
 CHECKS: dict[str, Check] = {
     "BVP": check_bvp,
@@ -348,7 +399,7 @@ def assess(
         if check is None:
             continue
         rate = epoch.windows[name].sampling_rate_hz
-        found = check(samples, rate, policy)
+        found = check(samples, rate, policy, epoch.preprocessing)
         if moved and name == motion_affects:
             found.append(MOTION)
 

@@ -34,7 +34,11 @@ from physioml.peripheral.chest import (
     CHEST_POLICY,
     assess_chest,
 )
-from physioml.peripheral.features import FEATURE_SET_VERSION, extract
+from physioml.peripheral.features import (
+    FEATURE_SET,
+    FEATURE_SET_VERSION,
+    extract,
+)
 from physioml.peripheral.qc import DEFAULT_POLICY, QCPolicy, assess
 from physioml.peripheral.windowing import epochs
 
@@ -181,12 +185,65 @@ def _policy_version(device: str, policy: QCPolicy, chest_policy: QCPolicy) -> st
     return f"{policy.version}+{chest_policy.version}"
 
 
-def _wrist(epoch, policy: QCPolicy) -> tuple[list[Feature], dict[str, tuple[str, ...]]]:
+QC_PREFIX = "qc_"
+"""Marks a column that describes the *recording* rather than the participant.
+
+Quality control is not neutral with respect to the protocol. A stressed
+participant in this dataset is standing and talking, so their signal is noisier
+than the same person sitting still -- and if the artifact rate alone can pick
+the condition out, then part of any model's score is being earned by
+measurement quality rather than physiology. These columns exist to measure how
+much. They are off by default, because a feature that predicts the label
+without describing the person is a shortcut, not a finding.
+"""
+
+
+def qc_indicators(
+    codes: dict[str, tuple[str, ...]], rejected: set[str]
+) -> dict[str, float]:
+    """One row's quality control, as numbers a model can be trained on."""
+    found: dict[str, float] = {}
+    for signal, reasons in codes.items():
+        found[f"{QC_PREFIX}{signal}_flagged"] = 1.0 if reasons else 0.0
+        found[f"{QC_PREFIX}{signal}_rejected"] = 1.0 if signal in rejected else 0.0
+        found[f"{QC_PREFIX}{signal}_codes"] = float(len(reasons))
+        for code in reasons:
+            found[f"{QC_PREFIX}{signal}_{code}"] = 1.0
+    return found
+
+
+def _quality_features(
+    verdict, epoch, prefix: str, feature_set: str, version: str
+) -> list[Feature]:
+    """Quality control as features, so it can be trained on deliberately."""
+    rejected = {n for n, s in verdict.statuses.items() if not s.usable}
+    window_id = next(iter(epoch.windows.values())).window_id
+    return [
+        Feature.create(
+            subject_id=epoch.subject_id,
+            # ``qc_indicators`` already carries the marker; ``prefix`` only
+            # separates the two devices from each other.
+            name=f"{QC_PREFIX}{prefix}{name[len(QC_PREFIX) :]}",
+            value=value,
+            unit=None,
+            feature_set=feature_set,
+            feature_set_version=version,
+            source_window_ids=(window_id,),
+            transform_id=f"{feature_set}@{version}",
+        )
+        for name, value in qc_indicators(verdict.codes, rejected).items()
+    ]
+
+
+def _wrist(epoch, policy: QCPolicy, quality: bool = False):
     verdict = assess(epoch, policy)
-    return extract(epoch, verdict, policy), verdict.codes
+    found = extract(epoch, verdict, policy)
+    if quality and found:
+        found += _quality_features(verdict, epoch, "", FEATURE_SET, FEATURE_SET_VERSION)
+    return found, verdict.codes
 
 
-def _chest(epoch, policy: QCPolicy) -> tuple[list[Feature], dict[str, tuple[str, ...]]]:
+def _chest(epoch, policy: QCPolicy, quality: bool = False):
     verdict = assess_chest(epoch, policy)
     found = extract(
         epoch,
@@ -196,6 +253,10 @@ def _chest(epoch, policy: QCPolicy) -> tuple[list[Feature], dict[str, tuple[str,
         feature_set=CHEST_FEATURE_SET,
         feature_set_version=CHEST_FEATURE_SET_VERSION,
     )
+    if quality and found:
+        found += _quality_features(
+            verdict, epoch, "chest_", CHEST_FEATURE_SET, CHEST_FEATURE_SET_VERSION
+        )
     return found, {f"chest:{k}": v for k, v in verdict.codes.items()}
 
 
@@ -204,6 +265,7 @@ def build(
     *,
     subjects: list[str] | None = None,
     device: str = "wrist",
+    quality_features: bool = False,
     length_seconds: float = 60.0,
     stride_seconds: float = 5.0,
     policy: QCPolicy = DEFAULT_POLICY,
@@ -263,7 +325,7 @@ def build(
             ):
                 if not epoch.labelled:
                     continue
-                features, found = extract_one(epoch, this_policy)
+                features, found = extract_one(epoch, this_policy, quality_features)
                 count(found)
                 if not features:
                     continue

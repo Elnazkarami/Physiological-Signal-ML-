@@ -108,6 +108,13 @@ class Prediction:
                 "window_end": self.window_end,
                 "predicted_class": self.predicted_class,
                 "predicted_value": self.predicted_value,
+                # The stated confidence is part of the output, not commentary
+                # on it. Left out, two predictions that say "stressed" with
+                # probability 0.51 and 0.99 are the same fact -- and CDFS
+                # writes the class and the confidence as two facts derived from
+                # one prediction, so a lineage query would find them sharing an
+                # identity while disagreeing about what the model said.
+                "probability": self.probability,
                 "model_name": self.model_name,
                 "model_version": self.model_version,
                 "training_run_id": self.training_run_id,

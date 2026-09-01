@@ -24,6 +24,12 @@ def main() -> None:
     parser.add_argument("--stride", type=float, default=5.0, help="stride seconds")
     parser.add_argument("--subjects", nargs="*", help="limit to these subject ids")
     parser.add_argument(
+        "--quality",
+        action="store_true",
+        help="also emit quality-control indicators as features, to measure how "
+        "much of a score signal quality alone can earn",
+    )
+    parser.add_argument(
         "--device",
         default="wrist",
         choices=("wrist", "chest", "both"),
@@ -38,6 +44,7 @@ def main() -> None:
         stride_seconds=args.stride,
         subjects=args.subjects,
         device=args.device,
+        quality_features=args.quality,
         progress=True,
     )
     table.save(args.output)

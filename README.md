@@ -181,15 +181,23 @@ the same windows of the same subject:
 | SDNN | 64.8 ms | 235.8 ms — **3.6× the real value** |
 
 Band-passing the pulse and spacing peaks by the spectrally-estimated rate each improved
-it; neither fixed it. The cause is not a threshold: at 64 Hz one sample is 15.6 ms, a
-large fraction of the 20–60 ms the measure resolves, and every missed or doubled beat
-enters squared.
+it; neither fixed it. At 64 Hz one sample is 15.6 ms, a large fraction of the 20–60 ms the
+measure resolves, and every missed or doubled beat enters squared.
+
+**That is a finding about this implementation on these recordings, not a claim about wrist
+photoplethysmography.** What was measured is that *this* detector, on *this* dataset,
+at 64 Hz, produced a number wrong by a factor of 3.6. Artifact correction, ectopic-beat
+handling, and interpolation to a finer time base are all standard and none of them are
+implemented here; published work does recover usable variability from wrist optics under
+favourable conditions. The claim being made is narrow on purpose: these features, as
+built, could not be defended, so they are not emitted.
 
 So they are not emitted. They would have carried enough signal to *raise a model's score*
 — being correlated with artifact rate and therefore with movement — while being
-scientifically indefensible. A number wrong by a factor of four that looks useful is
-worse than an absent one. Rate is kept, at an error in line with what an optical wrist
-sensor gives.
+indefensible as physiology. A number wrong by a factor of four that looks useful is worse
+than an absent one. Rate is kept, at an error in line with what an optical wrist sensor
+gives. The [chest electrocardiogram](#adding-a-second-device) supplies the variability
+this could not, and the same measures are ordinary there.
 
 ## First result
 
@@ -208,10 +216,10 @@ both sides.
 | model | bal. accuracy | F1 | AUC | PR-AUC | Brier | ECE | worst subject |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | majority class | 0.500 ±0.000 | 0.438 | 0.500 | 0.222 | 0.222 | 0.000 | 0.500 |
-| **logistic regression** | **0.887 ±0.058** | 0.873 | 0.947 | 0.876 | 0.077 | 0.101 | **0.796** |
-| linear SVM | 0.828 ±0.113 | 0.844 | 0.955 | 0.892 | 0.067 | 0.092 | 0.606 |
-| random forest | 0.859 ±0.113 | 0.856 | **0.978** | **0.942** | 0.069 | 0.117 | 0.500 |
-| gradient boosting | 0.852 ±0.109 | 0.854 | 0.976 | 0.938 | 0.082 | 0.086 | 0.504 |
+| **logistic regression** | **0.898 ±0.056** | 0.882 | 0.954 | 0.891 | 0.070 | 0.090 | **0.766** |
+| linear SVM | 0.844 ±0.112 | 0.859 | 0.961 | 0.911 | 0.062 | 0.082 | 0.620 |
+| random forest | 0.854 ±0.113 | 0.851 | 0.976 | 0.941 | 0.069 | 0.115 | 0.500 |
+| gradient boosting | 0.849 ±0.110 | 0.847 | **0.977** | 0.938 | 0.085 | 0.089 | 0.504 |
 
 The majority row is there so the others mean something: on a task that is 22% positive,
 answering "baseline" every time is 78% accurate and 0.500 balanced-accurate.
@@ -221,18 +229,18 @@ reading](#what-the-model-is-actually-reading) takes the sensors apart, and the a
 lowers the figure that can honestly be called physiological.
 
 **Logistic regression wins, and the ranking flips depending on which column you read.**
-The ensembles have the better AUC — random forest separates the classes best of anything
-here — but logistic regression has the higher balanced accuracy and half the fold-to-fold
-spread (±0.058 against ±0.113).
+The ensembles have the better AUC — gradient boosting separates the classes best of
+anything here — but logistic regression has the higher balanced accuracy and half the
+fold-to-fold spread (±0.056 against ±0.113).
 
-The last column is why that matters. Random forest scores 0.978 AUC across the cohort and
+The last column is why that matters. Random forest scores 0.976 AUC across the cohort and
 **0.500 — chance — on subject S14**; gradient boosting gets 0.504 on the same person.
-Logistic regression gets 0.818 there. A cohort mean hides a model that has learned
+Logistic regression does not fail on anyone: its worst subject is 0.766. A cohort mean hides a model that has learned
 nothing at all about someone, which is exactly the failure a deployed physiological
 classifier makes in front of a real user. Per-subject scores are reported for every fold
 for that reason, and the worst one is carried into the summary rather than averaged away.
 
-Calibration is mediocre across the board — 0.086 to 0.117 expected calibration error, so
+Calibration is mediocre across the board — 0.082 to 0.115 expected calibration error, so
 a stated 90% is nearer 80%. [Calibration](#calibration-fixes-the-spread-not-the-average)
 improves it, and not in the way the average suggests.
 
@@ -251,19 +259,19 @@ Logistic regression, same folds throughout:
 
 | features | n | bal. accuracy | AUC | worst subject |
 | --- | ---: | ---: | ---: | ---: |
-| all signals | 28 | 0.887 ±0.058 | 0.947 | 0.796 |
+| all signals | 28 | 0.898 ±0.056 | 0.954 | 0.766 |
 | **accelerometer alone** | 8 | **0.855 ±0.077** | 0.928 | 0.634 |
-| electrodermal alone | 9 | 0.819 ±0.117 | 0.893 | 0.500 |
+| electrodermal alone | 9 | 0.822 ±0.110 | 0.886 | 0.537 |
 | pulse alone | 6 | 0.744 ±0.108 | 0.824 | 0.548 |
 | temperature alone | 5 | 0.702 ±0.145 | 0.744 | 0.337 |
-| without accelerometer | 20 | 0.839 ±0.108 | 0.912 | 0.603 |
+| without accelerometer | 20 | 0.844 ±0.102 | 0.916 | 0.619 |
 | without electrodermal | 19 | 0.853 ±0.108 | 0.923 | 0.578 |
-| without pulse | 22 | 0.885 ±0.059 | 0.939 | 0.748 |
-| without temperature | 23 | 0.889 ±0.054 | 0.953 | 0.794 |
+| without pulse | 22 | 0.882 ±0.062 | 0.945 | 0.760 |
+| without temperature | 23 | 0.900 ±0.051 | 0.956 | 0.769 |
 
-**The accelerometer alone gets 0.855 — within 0.032 of all 28 features together.** It is
-the largest contributor on removal (−0.048) and the pattern repeats with random forest,
-where accelerometry alone reaches 0.854 against 0.859 for everything.
+**The accelerometer alone gets 0.855 — within 0.043 of all 28 features together.** It is
+the largest contributor on removal (−0.054) and the pattern repeats with random forest,
+where accelerometry alone reaches 0.854 against 0.854 for everything.
 
 That is a finding about the dataset, not a better model. WESAD induces stress with the
 Trier Social Stress Test: the participant stands, speaks in front of a panel and does
@@ -273,17 +281,52 @@ from accelerometry is substantially detecting the protocol rather than the physi
 and it would not survive contact with a setting where stressed people sit still.
 
 The honest number for the physiological claim is the one with movement removed:
-**0.839 balanced accuracy from pulse, electrodermal activity and temperature alone.**
+**0.844 balanced accuracy from pulse, electrodermal activity and temperature alone.**
 Lower than the headline, and it is the one that means what it appears to mean.
 
-Two smaller results in the same table. Pulse contributes +0.003 — near nothing beyond
-what the other sensors already supply, consistent with a wrist optical sensor that gives
-rate and no usable variability. Temperature contributes −0.002: the model is very
-slightly *better* without it, which is reported rather than rounded away.
+Two smaller results in the same table. Pulse contributes +0.016 — little beyond what the
+other sensors already supply, consistent with a wrist optical sensor that gives rate and
+no usable variability. Temperature contributes −0.002: the model is very slightly
+*better* without it, which is reported rather than rounded away.
 
 One detail worth the space: for random forest, accelerometry alone has a worst subject of
 0.753, while the full feature set drops to 0.500 on S14. Adding physiological features to
 movement made that model fail completely on one person.
+
+### Signal quality alone gets to 0.663
+
+Movement is not the only thing the protocol leaves in the recording. Quality control is
+not neutral with respect to the condition either: a stressed participant here is standing
+and talking, so their signal is noisier than the same person sitting still. If the
+artifact rate alone can pick the condition out, part of any score is being earned by
+measurement quality rather than physiology.
+
+So it was measured. Twelve columns describing only *how the recording went* — per signal,
+whether quality control flagged it, whether it rejected it, and how many reasons it gave —
+and nothing about the participant:
+
+| input | columns | bal. accuracy | AUC |
+| --- | ---: | ---: | ---: |
+| majority class | — | 0.500 ±0.000 | 0.500 |
+| **quality indicators only** | 12 | **0.663 ±0.114** | 0.663 |
+| physiology only | 28 | 0.898 ±0.056 | 0.954 |
+| physiology + quality | 40 | 0.897 ±0.056 | 0.953 |
+
+**How noisy the recording was predicts the experimental condition at 0.663.** That is far
+from the full model, and far from chance. It is a shortcut available to any model trained
+on this dataset, and the fact that it exists is a property of laboratory stress protocols
+rather than of this pipeline.
+
+Adding those columns to the physiological ones changes nothing at all (0.898 to 0.897),
+which says the physiological features already carry what the quality indicators know —
+unsurprising, since most quality flags here are driven by movement and the accelerometer
+measures that directly. The shortcut is real but it is not additive; it is the same
+shortcut the [accelerometry result](#what-the-model-is-actually-reading) already found,
+arriving through a different door.
+
+Build the table with `--quality` to reproduce this. It is off by default, because a
+feature that predicts the label without describing the person is a shortcut and not a
+finding, and it should have to be asked for.
 
 ## Calibration fixes the spread, not the average
 
@@ -301,38 +344,37 @@ Isotonic regression, leave-one-subject-out, decisions left untouched:
 
 | model | bal. accuracy | AUC | Brier | ECE |
 | --- | ---: | ---: | ---: | ---: |
-| logistic | 0.887 | 0.947 | 0.077 | 0.101 |
-| logistic + isotonic | 0.887 | 0.947 | **0.070** | **0.086** |
-| random forest | 0.859 | 0.978 | 0.069 | 0.117 |
-| random forest + isotonic | 0.859 | 0.975 | 0.067 | **0.095** |
-| gradient boosting | 0.852 | 0.976 | 0.082 | 0.086 |
-| gradient boosting + isotonic | 0.852 | 0.974 | **0.067** | 0.088 |
+| logistic | 0.898 | 0.954 | 0.070 | 0.090 |
+| logistic + isotonic | 0.898 | 0.951 | **0.061** | **0.070** |
+| random forest | 0.854 | 0.976 | 0.069 | 0.115 |
+| random forest + isotonic | 0.854 | 0.973 | 0.069 | **0.095** |
+| gradient boosting | 0.849 | 0.977 | 0.085 | 0.089 |
+| gradient boosting + isotonic | 0.849 | 0.975 | **0.071** | 0.094 |
 
 Balanced accuracy is identical everywhere, by design: calibration restates confidence and
 leaves the operating point alone, so a before-and-after row shows the effect of one change
 rather than two. Isotonic regression is monotone, so ranking — and therefore AUC — is
 unchanged too.
 
-**On the average, this looks like a small win and for gradient boosting like none at all.
-The average is the wrong number.** Per subject, for logistic regression:
+**On the average this looks like a modest win, and for gradient boosting like none at
+all. The average is the wrong number.** Per subject, for logistic regression:
 
 | | mean | spread (sd) | worst subject |
 | --- | ---: | ---: | ---: |
-| uncalibrated | 0.101 | 0.067 | 0.254 |
-| isotonic | 0.086 | **0.031** | **0.171** |
+| uncalibrated | 0.090 | 0.061 | 0.213 |
+| isotonic | 0.070 | **0.028** | **0.129** |
 
-The spread across people more than halves. The subjects who were badly served improve a
-lot — S15 from 0.195 to 0.066, S11 from 0.254 to 0.171, S16 from 0.148 to 0.093 — while
-subjects who were already fine get slightly worse, S3 from 0.044 to 0.088. That is the
-trade a calibrator makes: it pulls everyone toward the cohort's confidence, which helps
-whoever was furthest out.
+The spread across people more than halves. The subjects who were badly served improve
+most — S15 from 0.175 to 0.047, S11 from 0.213 to 0.125, S13 from 0.188 to 0.129 — which
+is the trade a calibrator makes: it pulls everyone toward the cohort's confidence, and
+that helps whoever was furthest out.
 
 The underlying problem is visible in the stated rates. Every participant's true stress
 share is between 0.21 and 0.24 — the protocol fixes it. The uncalibrated model's *average
-stated probability* ranges from 0.187 for S3 to **0.475 for S11**, two and a half times
-apart for people whose actual rate is the same. Calibration narrows that to 0.133–0.390.
-It does not close it, and no single global calibrator can: S11's confidence is wrong in a
-way that is specific to S11.
+stated probability* ranges from 0.171 to **0.434**, two and a half times apart for people
+whose actual rate is the same. Calibration narrows that to 0.131–0.350. It does not close
+it, and no single global calibrator can: that participant's confidence is wrong in a way
+specific to them.
 
 So the honest statement is that these probabilities are better than they were and are
 still not good enough to put in front of someone as a percentage. What closes the gap is
@@ -429,19 +471,17 @@ removed from the evaluation — so all three columns below are scored on identic
 
 | enrolment | wall clock | ECE, none | ECE, cohort | ECE, personal | worst subject |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 5% of each condition | 7.1 min | 0.098 | 0.088 | **0.038** | 0.245 → 0.166 → **0.104** |
-| 10% | 9.2 min | 0.099 | 0.090 | 0.047 | 0.250 → 0.169 → 0.187 |
-| 20% | 13.8 min | 0.101 | 0.096 | **0.040** | 0.260 → 0.175 → **0.102** |
+| 5% of each condition | 7.1 min | 0.088 | 0.073 | **0.038** | 0.215 → 0.127 → **0.095** |
+| 10% | 9.2 min | 0.091 | 0.076 | 0.042 | 0.221 → 0.131 → 0.140 |
+| 20% | 13.8 min | 0.094 | 0.083 | **0.038** | 0.235 → 0.140 → 0.100 |
 
-**Seven minutes of a person's own labelled data more than halves the calibration error,
-and beats cohort calibration by a factor of over two.** The subjects the cohort calibrator
-could not reach are the ones that move most: S11 from 0.260 to 0.021, S15 from 0.189 to
-0.008, S13 from 0.157 to 0.015.
+**Seven minutes of a person's own labelled data cuts the calibration error by more than
+half, and beats cohort calibration by close to two to one.** The worst-served subject
+improves from 0.215 to 0.095.
 
-More enrolment is not reliably better — 10% scores worse than 5% here, and one subject
-(S6) is made worse by personalisation at every size tried. With fifteen participants those
-differences are within the noise of the estimate, which is the honest reading rather than
-a dose-response curve.
+More enrolment is not reliably better — 10% scores worse than 5% here on both the mean and
+the worst subject. With fifteen participants that difference is within the noise of the
+estimate, which is the honest reading rather than a dose-response curve.
 
 ### The enrolment has to contain the thing being calibrated
 
@@ -592,6 +632,8 @@ python scripts/evaluate.py wesad_features.npz --calibrated
 python scripts/build_features.py ~/Downloads/WESAD.zip wesad_fused.npz --device both
 python scripts/ablate.py wesad_fused.npz --by device
 python scripts/personalise.py wesad_features.npz
+
+python scripts/build_features.py ~/Downloads/WESAD.zip wesad_qc.npz --quality
 ```
 
 For the sleep recordings — the `sleep-cassette` files from
