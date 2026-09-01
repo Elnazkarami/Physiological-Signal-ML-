@@ -15,10 +15,17 @@ module exists to avoid. So the inner split groups by subject, using the same
 splitter the outer evaluation uses.
 
 **Calibration changes the probability, not the decision.** ``predict`` is the
-base model's, untouched. Isotonic regression is monotone, so the ranking and
-therefore ROC and PR area are unchanged too, and what is left in a
-before-and-after table is exactly the effect on the stated confidence. Moving
-the operating point at the same time would mix two changes into one column.
+base model's, untouched, so the reported labels keep the base model's decision
+rule rather than thresholding the calibrated probability at 0.5. What is left
+in a before-and-after table is the effect on the stated confidence alone;
+moving the operating point at the same time would mix two changes into one
+column.
+
+The ranking is *nearly* preserved rather than exactly. Isotonic regression is
+monotone non-decreasing, and its flat regions map distinct scores onto a single
+value: those ties change the area under the curve slightly. On WESAD it moves
+from 0.954 to 0.951. Anything that claimed AUC was untouched would be claiming
+something the tables themselves contradict.
 """
 
 from __future__ import annotations

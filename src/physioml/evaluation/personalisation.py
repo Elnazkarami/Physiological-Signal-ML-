@@ -53,11 +53,20 @@ class PersonalScores:
     uncalibrated: Scores
     cohort: Scores
     personal: Scores
+    prevalence: Scores
+    """A constant probability, fitted on the enrolment labels alone.
+
+    The baseline that separates calibration from arithmetic. This protocol
+    fixes each participant's stress share near 22%, so a calibrator that has
+    learned only "answer 0.22 every time" would look well calibrated without
+    having learned anything about the person. If personal calibration cannot
+    beat this, it has not earned its enrolment."""
 
     def line(self) -> str:
         return (
             f"{self.subject:5} {self.enrolment_rows:5}  {self.enrolment_minutes:6.1f}   "
-            f"{self.uncalibrated.ece:6.3f}  {self.cohort.ece:6.3f}  {self.personal.ece:6.3f}"
+            f"{self.uncalibrated.ece:6.3f}  {self.cohort.ece:6.3f}  "
+            f"{self.prevalence.ece:6.3f}  {self.personal.ece:6.3f}"
         )
 
 
@@ -83,6 +92,7 @@ class Personalisation:
             ("uncalibrated", lambda s: s.uncalibrated),
             ("cohort", lambda s: s.cohort),
             ("personal", lambda s: s.personal),
+            ("prevalence", lambda s: s.prevalence),
         ):
             mean, sd, worst = spread([pick(s).ece for s in rows])
             found[f"{name}_ece_mean"] = mean
@@ -100,7 +110,7 @@ class Personalisation:
     def table(self) -> str:
         header = (
             f"{'subj':5} {'rows':>5}  {'enrol m':>7}   "
-            f"{'no cal':>6}  {'cohort':>6}  {'person':>6}"
+            f"{'no cal':>6}  {'cohort':>6}  {'preval':>6}  {'person':>6}"
         )
         lines = [header, "-" * len(header)]
         lines.extend(s.line() for s in self.subjects)
@@ -109,17 +119,17 @@ class Personalisation:
         lines.append(
             f"{'mean':5} {'':5}  {found['enrolment_minutes_mean']:7.1f}   "
             f"{found['uncalibrated_ece_mean']:6.3f}  {found['cohort_ece_mean']:6.3f}  "
-            f"{found['personal_ece_mean']:6.3f}"
+            f"{found['prevalence_ece_mean']:6.3f}  {found['personal_ece_mean']:6.3f}"
         )
         lines.append(
             f"{'sd':5} {'':5}  {'':7}   "
             f"{found['uncalibrated_ece_sd']:6.3f}  {found['cohort_ece_sd']:6.3f}  "
-            f"{found['personal_ece_sd']:6.3f}"
+            f"{found['prevalence_ece_sd']:6.3f}  {found['personal_ece_sd']:6.3f}"
         )
         lines.append(
             f"{'worst':5} {'':5}  {'':7}   "
             f"{found['uncalibrated_ece_worst']:6.3f}  {found['cohort_ece_worst']:6.3f}  "
-            f"{found['personal_ece_worst']:6.3f}"
+            f"{found['prevalence_ece_worst']:6.3f}  {found['personal_ece_worst']:6.3f}"
         )
         return "\n".join(lines)
 
@@ -352,6 +362,10 @@ def personalise(
         )
         personal_evaluate = _apply(personal, raw_evaluate, method)
 
+        # The arithmetic baseline: the share of the enrolment that was
+        # positive, stated for every window regardless of the signal.
+        constant = np.full(y_evaluate.size, float(np.mean(y_enrol)))
+
         who = table.subjects[evaluate_rows]
         scored.append(
             PersonalScores(
@@ -362,6 +376,7 @@ def personalise(
                 uncalibrated=score(y_evaluate, predicted, raw_evaluate, who),
                 cohort=score(y_evaluate, predicted, cohort_evaluate, who),
                 personal=score(y_evaluate, predicted, personal_evaluate, who),
+                prevalence=score(y_evaluate, predicted, constant, who),
             )
         )
 

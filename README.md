@@ -20,7 +20,9 @@ transformations, features, model version, and source observations that produced 
 
 CDFS remains the data-integrity, standards, audit and provenance engine. PhysioML owns
 signal processing and machine learning. Scientific dependencies — NumPy, SciPy,
-scikit-learn, MNE, PyTorch — live here and never enter the CDFS core.
+scikit-learn — live here and never enter the CDFS core. (Nothing deeper is installed:
+there is no neural-network code in this repository, so listing a deep-learning framework
+among its dependencies would describe an intention rather than the software.)
 
 ```
 CDFS  ──▶  canonical observations + identifiers + provenance
@@ -74,15 +76,17 @@ deployment, including that a correction leaves exactly one prediction in force
 afterwards and that its history runs from the retracted value to the one that stands.
 
 The replacement carries a reason naming the input that moved (`bmi 40.78 → 44.97`), not
-"model rerun". CDFS requires a reason on anything that supersedes a fact — 21 CFR
-11.10(e) applies to a model's corrections as much as a monitor's — and the input that
-changed is the answer to the question a reviewer is actually asking.
+"model rerun". CDFS requires a reason on anything that supersedes a fact. That is a CDFS
+design decision taken in the spirit of 21 CFR 11.10(e), which requires audit trails that
+preserve prior values and record who changed what and when; the regulation does not itself
+prescribe a free-text reason field. The requirement goes beyond it deliberately, because
+the input that changed is the answer to the question a reviewer is actually asking.
 
 **It has no runtime dependencies, and CI asserts that.** The chain of evidence is plain
 Python, so it can be constructed and tested without installing a scientific stack — if
 the provenance model ever needs NumPy to be exercised, it has grown into something else.
 
-### Four things it refuses
+### Five things it refuses
 
 These are the load-bearing behaviours, and each has a test:
 
@@ -156,9 +160,12 @@ its own columns rather than loading a night of polysomnography to reach it.
 | wake | 3,449 | 16.7% |
 | N3 | 2,981 | 14.5% |
 | N1 | 1,240 | 6.0% |
-| **scored and kept** | **20,626** | **35.8%** |
+| **scored and kept** | **20,626** | **34.0%** |
 | trimmed | 36,950 | recorder running before bed and after waking |
 | unscored | 3,013 | movement time and epochs nobody scored |
+
+The denominator is 60,589 epochs across the twenty nights: 20,626 kept, 36,950 trimmed,
+3,013 unscored. Of the 57,576 that carry a score, 35.8% are kept.
 
 30-second epochs, because that is what the scorer used. Consecutive rows share no signal,
 which is the one thing that is *easier* here than on WESAD.
@@ -172,10 +179,13 @@ nothing, because a heart rate from a flatlined sensor is not a missing value —
 confident wrong one.
 
 **Pulse-rate variability is not among them.** SDNN, RMSSD and pNN50 were implemented,
-then validated against the chest electrocardiogram WESAD records alongside the wrist, on
-the same windows of the same subject:
+then compared against the chest electrocardiogram WESAD records alongside the wrist, on
+the same windows of the same subject. The electrocardiogram is a *reference estimate*, not
+ground truth: it is this pipeline's own R-peak detection on a cleaner signal, validated
+against synthetic beat trains rather than against annotated beats, which WESAD does not
+provide.
 
-| | chest ECG (truth) | wrist PPG |
+| | chest ECG (reference) | wrist PPG |
 | --- | ---: | ---: |
 | heart rate | 73.0 bpm | 69.8 bpm — mean abs. error **7.1 bpm** |
 | SDNN | 64.8 ms | 235.8 ms — **3.6× the real value** |
@@ -213,9 +223,9 @@ Evaluation is **leave-one-subject-out**: fifteen folds, each trained on fourteen
 and tested on the one held out. Scaling is fitted inside the fold. No subject is ever on
 both sides.
 
-| model | bal. accuracy | F1 | AUC | PR-AUC | Brier | ECE | worst subject |
+| model | bal. accuracy | macro F1 | AUC | PR-AUC | Brier | ECE | worst subject |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| majority class | 0.500 ±0.000 | 0.438 | 0.500 | 0.222 | 0.222 | 0.000 | 0.500 |
+| majority class | 0.500 ±0.000 | 0.438 | 0.500 | 0.222 | 0.222 | 0.222 | 0.500 |
 | **logistic regression** | **0.898 ±0.056** | 0.882 | 0.954 | 0.891 | 0.070 | 0.090 | **0.766** |
 | linear SVM | 0.844 ±0.112 | 0.859 | 0.961 | 0.911 | 0.062 | 0.082 | 0.620 |
 | random forest | 0.854 ±0.113 | 0.851 | 0.976 | 0.941 | 0.069 | 0.115 | 0.500 |
@@ -234,15 +244,23 @@ anything here — but logistic regression has the higher balanced accuracy and h
 fold-to-fold spread (±0.056 against ±0.113).
 
 The last column is why that matters. Random forest scores 0.976 AUC across the cohort and
-**0.500 — chance — on subject S14**; gradient boosting gets 0.504 on the same person.
-Logistic regression does not fail on anyone: its worst subject is 0.766. A cohort mean hides a model that has learned
+**0.500 — chance-level balanced accuracy — on subject S14**; gradient boosting gets 0.504
+on the same person. Logistic regression's lowest observed participant score is 0.766.
+
+That is a statement about a decision threshold, not about what the model knows. A balanced
+accuracy of 0.500 means the labels it emits for that participant are no better than chance
+*at the operating point it was scored at*; the model may still rank their stressed windows
+above their calm ones while placing all of them on one side of the boundary. Separating
+those two requires that participant's own AUC and predicted-probability distribution,
+which the per-subject table does not currently carry. A cohort mean hides a model that has learned
 nothing at all about someone, which is exactly the failure a deployed physiological
 classifier makes in front of a real user. Per-subject scores are reported for every fold
 for that reason, and the worst one is carried into the summary rather than averaged away.
 
-Calibration is mediocre across the board — 0.082 to 0.115 expected calibration error, so
-a stated 90% is nearer 80%. [Calibration](#calibration-fixes-the-spread-not-the-average)
-improves it, and not in the way the average suggests.
+Calibration is mediocre across the board — 0.089 to 0.115 expected calibration error.
+A single such number does not say *which* confidences are wrong, so the reliability table
+is [below](#calibration-fixes-the-spread-not-the-average); the short version is that the
+overconfidence is worst in the middle of the range, not at the top.
 
 Simple models were run first to establish whether the engineered features carry usable
 signal before anything deeper is justified. They do, and the simplest one is currently
@@ -277,12 +295,24 @@ That is a finding about the dataset, not a better model. WESAD induces stress wi
 Trier Social Stress Test: the participant stands, speaks in front of a panel and does
 mental arithmetic, while baseline is seated reading and meditation is seated breathing.
 Posture and movement differ across conditions **by design**. A classifier reaching 0.855
-from accelerometry is substantially detecting the protocol rather than the physiology,
-and it would not survive contact with a setting where stressed people sit still.
+from accelerometry alone is, to that extent, detecting the protocol rather than the
+physiology. Whether it would survive a setting where stressed people sit still is not
+something this dataset can answer — it contains no such condition — but the burden is now
+on the claim that it would.
 
-The honest number for the physiological claim is the one with movement removed:
-**0.844 balanced accuracy from pulse, electrodermal activity and temperature alone.**
-Lower than the headline, and it is the one that means what it appears to mean.
+With movement removed, the score is **0.844 from pulse, electrodermal activity and
+temperature alone.** That is lower than the headline, and it is *not* a confound-free
+measure of stress physiology either. Pulse, electrodermal activity and skin temperature
+all respond to posture, speech, movement artifact and the timing of the protocol blocks;
+dropping the explicit motion features does not remove those influences, it only removes
+the most direct measurement of them.
+
+What the ablation establishes is narrower and still worth having: **there are strong
+protocol-related shortcuts available in this dataset, and any score reported without
+testing for them is uninterpretable.** It identifies contribution within this setup. It
+does not identify a mechanism, and it cannot: that would need validation under different
+movement and task conditions — stressed participants sitting still, calm participants
+moving — which WESAD does not contain.
 
 Two smaller results in the same table. Pulse contributes +0.016 — little beyond what the
 other sensors already supply, consistent with a wrist optical sensor that gives rate and
@@ -290,8 +320,9 @@ no usable variability. Temperature contributes −0.002: the model is very sligh
 *better* without it, which is reported rather than rounded away.
 
 One detail worth the space: for random forest, accelerometry alone has a worst subject of
-0.753, while the full feature set drops to 0.500 on S14. Adding physiological features to
-movement made that model fail completely on one person.
+0.753, while the full feature set drops to 0.500 on S14 — chance at the evaluated
+threshold. Adding the physiological features to movement cost that model its usable
+operating point for one person.
 
 ### Signal quality alone gets to 0.663
 
@@ -309,20 +340,22 @@ and nothing about the participant:
 | --- | ---: | ---: | ---: |
 | majority class | — | 0.500 ±0.000 | 0.500 |
 | **quality indicators only** | 12 | **0.663 ±0.114** | 0.663 |
-| physiology only | 28 | 0.898 ±0.056 | 0.954 |
-| physiology + quality | 40 | 0.897 ±0.056 | 0.953 |
+| signal-derived features | 28 | 0.898 ±0.056 | 0.954 |
+| signal-derived + quality | 40 | 0.897 ±0.056 | 0.953 |
 
 **How noisy the recording was predicts the experimental condition at 0.663.** That is far
 from the full model, and far from chance. It is a shortcut available to any model trained
 on this dataset, and the fact that it exists is a property of laboratory stress protocols
 rather than of this pipeline.
 
-Adding those columns to the physiological ones changes nothing at all (0.898 to 0.897),
-which says the physiological features already carry what the quality indicators know —
-unsurprising, since most quality flags here are driven by movement and the accelerometer
-measures that directly. The shortcut is real but it is not additive; it is the same
-shortcut the [accelerometry result](#what-the-model-is-actually-reading) already found,
-arriving through a different door.
+Adding those columns to the 28 signal-derived ones changes nothing measurable (0.898 to
+0.897). That is consistent with the signal features already carrying what the quality
+indicators know — most flags here are driven by movement, which the accelerometer measures
+directly — but it does not prove the two contain the same information. A feature can be
+redundant with a *combination* of others without duplicating any of them.
+
+Note also that the 28 features are not "physiology": eight are accelerometry. The honest
+label is signal-derived.
 
 Build the table with `--quality` to reproduce this. It is off by default, because a
 feature that predicts the label without describing the person is a shortcut and not a
@@ -332,6 +365,24 @@ finding, and it should have to be asked for.
 
 A probability is calibrated if the windows it calls 30% likely turn out stressed about
 30% of the time. Ranking does not need this. A number a person reads does.
+
+Where the model is wrong, measured rather than asserted — logistic regression, pooled
+across folds:
+
+| stated | windows | mean stated | actually stressed |
+| --- | ---: | ---: | ---: |
+| 0.0–0.1 | 4,504 | 0.027 | 0.020 |
+| 0.2–0.3 | 391 | 0.245 | 0.082 |
+| 0.4–0.5 | 165 | 0.448 | 0.212 |
+| 0.6–0.7 | 194 | 0.648 | 0.464 |
+| 0.8–0.9 | 208 | 0.854 | 0.716 |
+| 0.9–1.0 | 1,283 | 0.986 | 0.905 |
+
+**The overconfidence is worst in the middle.** A window called 45% likely is stressed 21%
+of the time; one called 85% likely is stressed 72% of the time. The two ends are close to
+honest — the model is either confident and roughly right, or unconfident and roughly
+right, and uncertain in a way that overstates the risk. A single expected-calibration-error
+number cannot say any of that, which is why it is not the only thing reported.
 
 Calibration is fitted on **held-out subjects**, like everything else here. The usual
 shortcut is an inner stratified split, which puts the same participants in the fit set
@@ -351,10 +402,15 @@ Isotonic regression, leave-one-subject-out, decisions left untouched:
 | gradient boosting | 0.849 | 0.977 | 0.085 | 0.089 |
 | gradient boosting + isotonic | 0.849 | 0.975 | **0.071** | 0.094 |
 
-Balanced accuracy is identical everywhere, by design: calibration restates confidence and
-leaves the operating point alone, so a before-and-after row shows the effect of one change
-rather than two. Isotonic regression is monotone, so ranking — and therefore AUC — is
-unchanged too.
+Balanced accuracy is identical everywhere, by design: `predict` stays the base model's, so
+the reported labels keep its decision rule rather than thresholding the calibrated
+probability at 0.5. A before-and-after row therefore shows the effect of one change rather
+than two.
+
+AUC moves slightly, and that is not a rounding artifact. Isotonic regression is monotone
+*non-decreasing*, not strictly increasing: its flat regions map distinct scores onto one
+value, and those ties change the area under the curve. 0.954 to 0.951 for logistic
+regression.
 
 **On the average this looks like a modest win, and for gradient boosting like none at
 all. The average is the wrong number.** Per subject, for logistic regression:
@@ -457,59 +513,82 @@ majority-class baseline scoring 0.533 instead of exactly 0.500**, which is the r
 row is in every table. Such folds are now skipped and the subject is named in the output,
 because a mean over fourteen subjects reported as though it were fifteen is a quiet lie.
 
-## Seven minutes of your own data
+## Personal calibration on short labelled blocks — a negative result
 
 Cohort calibration narrows the spread of stated confidence across people and cannot close
-it, because S11's confidence is wrong in a way specific to S11. The remedy a deployment
-actually has is a short enrolment: a few labelled minutes from the person, before the
-model is trusted on them.
+it. The obvious next step is a short enrolment: a few labelled minutes from the person
+themselves, used to fit a calibrator for them alone. It does not work here, and the way it
+fails is worth more than the result I first reported.
 
-**The model is never trained on that enrolment.** It stays leave-one-subject-out; only the
-calibrator sees the person's own data, which keeps this a statement about calibration
-rather than about fine-tuning. Enrolment windows, and every window overlapping one, are
-removed from the evaluation — so all three columns below are scored on identical rows.
+**The model is never trained on the enrolment.** It stays leave-one-subject-out; only the
+calibrator sees the person's own data. Enrolment windows, and every window overlapping
+one, are removed from the evaluation, so all four columns are scored on identical rows.
 
-| enrolment | wall clock | ECE, none | ECE, cohort | ECE, personal | worst subject |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 5% of each condition | 7.1 min | 0.088 | 0.073 | **0.038** | 0.215 → 0.127 → **0.095** |
-| 10% | 9.2 min | 0.091 | 0.076 | 0.042 | 0.221 → 0.131 → 0.140 |
-| 20% | 13.8 min | 0.094 | 0.083 | **0.038** | 0.235 → 0.140 → 0.100 |
+With 7.1 minutes of labelled signal per participant, taken as blocks from the start of
+each condition:
 
-**Seven minutes of a person's own labelled data cuts the calibration error by more than
-half, and beats cohort calibration by close to two to one.** The worst-served subject
-improves from 0.215 to 0.095.
+| variant | ECE | Brier | AUC |
+| --- | ---: | ---: | ---: |
+| uncalibrated | 0.088 | 0.067 | 0.955 |
+| cohort calibration | 0.073 | **0.061** | 0.952 |
+| **constant at enrolment prevalence** | **0.014** | 0.175 | 0.500 |
+| personal calibration | 0.076 | 0.076 | 0.891 |
 
-More enrolment is not reliably better — 10% scores worse than 5% here on both the mean and
-the worst subject. With fifteen participants that difference is within the noise of the
-estimate, which is the honest reading rather than a dose-response curve.
+**Personal calibration is worse than cohort calibration on every measure**, and it damages
+the ranking badly — AUC falls from 0.952 to 0.891. Isotonic regression fitted on seven
+minutes of one person's data overfits: it produces a coarse step function with extreme
+values, and applying it to that person's remaining night is worse than leaving the
+probabilities alone.
+
+**And the constant beats everything on calibration error while being useless.** Answering
+"0.22" to every window — the share of the enrolment that was positive — scores the best
+expected calibration error in the table, 0.014, with an AUC of exactly 0.500. It cannot
+tell one window from another. This protocol fixes each participant's stress share near
+22%, so a calibrator that has learned only the base rate looks superbly calibrated.
+
+That is the finding: **expected calibration error alone does not measure what it is being
+read as measuring.** It is minimised by stating the prevalence, which is why the Brier
+score is beside it here — a proper scoring rule that the constant predictor loses badly
+(0.175 against 0.061). Any calibration result reported without a constant baseline and a
+proper score next to it is unfalsifiable.
+
+### What this does and does not establish
+
+The enrolment is taken from the *beginning of each condition* across the session, which
+means the calibrator has seen labelled examples from every condition the evaluation later
+scores. That is **retrospective, within-session, condition-informed calibration**. It is
+not a claim that somebody can enrol for seven minutes and then receive calibrated
+predictions, and two costs are being conflated if it is read that way:
+
+- **Labelled signal**: 7.1 minutes, the union of the enrolment windows.
+- **Elapsed time before enrolment is complete**: potentially most of the session, because
+  the last condition block may occur near the end of it.
+
+A prospective claim would need calibration fitted on earlier data and evaluated on later
+data — ideally a different session. Excluding overlapping windows removes shared samples;
+it does not remove the temporal structure that neighbouring windows share.
 
 ### The enrolment has to contain the thing being calibrated
 
-Three ways of choosing those minutes were implemented, and the differences are findings
-rather than options.
+Three ways of choosing those minutes were implemented, and the differences are structural.
 
-**Scattering single windows across the session does not work at all.** Each enrolment
-window forces a window-length exclusion on either side, so it costs two minutes of session
-to buy one. Twenty-four of them consume a twenty-minute recording completely: the first
-version of this returned an empty evaluation set for every subject, which is the
-arithmetic of the idea rather than a bug in it. Enrolment is taken in contiguous blocks,
-which cost the same two minutes however long they are.
+**Scattering single windows does not work at all.** Each enrolment window forces a
+window-length exclusion on either side, so it costs two minutes of session to buy one.
+Twenty-four of them consume a twenty-minute recording: the first version returned an empty
+evaluation set for every subject, which is the arithmetic of the idea rather than a bug in
+it. Enrolment is taken in contiguous blocks, which cost the same two minutes however long
+they are.
 
-**Enrolling someone before the session starts does not work either.** A protocol runs its
+**Enrolling before the session starts does not work either.** A protocol runs its
 conditions in blocks, so the opening minutes are one condition, and a calibrator given one
-class has nothing to calibrate.
+class has nothing to calibrate. **Blocks spread evenly** may or may not find the stress
+episode depending on where it falls. Taking the opening slice of each condition is what
+works — and it is also what makes the result retrospective.
 
-**Blocks spread evenly across the session may or may not work,** depending on where the
-stress episode happens to fall relative to them.
-
-What works is taking the opening slice of *each condition the session passes through*. The
-practical statement the three make together: personalising a stress model needs labelled
-stress from that person. Time on the device is not enough, and neither is a lot of it.
-
-One number in this section was wrong before it was right. Enrolment cost was first
-reported as one minute per window — 107 minutes for a session that ran for 60. These
-windows overlap by 55 of their 60 seconds, so the cost is the union of what they cover,
-not the sum of their lengths, and the cost is the whole point of the method.
+One number here was wrong before it was right. Enrolment cost was first reported as one
+minute per window — 107 minutes for a session that ran for 60. These windows overlap by 55
+of their 60 seconds, so the cost is the union of what they cover, not the sum of their
+lengths.
 
 ## Sleep staging, on a second dataset
 
@@ -535,6 +614,23 @@ both sides of every split, the leak the whole evaluation exists to prevent, arri
 through the file naming.
 
 20,626 epochs, 48 features, five stages — N2 45%, REM 18%, W 17%, N3 14%, N1 6%.
+
+**The protocol, stated so the number can be compared with anything.** Subjects SC400 to
+SC419 of the Sleep Cassette cohort, night 1 of each — the first night, chosen by the file
+name rather than by any property of the recording, and the second night not downloaded.
+Trimming uses the hypnogram itself to find the first and last non-wake epoch and keeps 30
+minutes on each side, so **the evaluation is scored around a sleep interval located by the
+reference annotation**. That is a valid benchmark scope and a disclosed one: it does not
+measure finding sleep inside an unrestricted recording. Hyperparameters are the library
+defaults, fixed before any run and never searched, so there is no inner selection loop to
+group — and nothing was tuned against these folds. Every metric is the mean over the
+twenty per-subject folds, not pooled predictions, except the confusion matrix, which is
+summed.
+
+Consecutive epochs share no signal, which removes the overlap problem the WESAD tables
+carry. It does not make them independent: they come from one participant and one
+continuously evolving sleep state, so a split made at random across epochs would still
+leak. Splits are by subject here for that reason.
 
 | model | bal. accuracy | Cohen's κ | accuracy | macro F1 | worst subject |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -570,7 +666,7 @@ and 21% to wake** — N1 is the transition into sleep and shares its theta with 
 is also the stage human scorers agree on least. A model that confuses N1 with REM and wake
 is failing the way the problem fails.
 
-### One electrode gets most of the way
+### One EEG derivation gets most of the way
 
 The montage question, answered on identical rows and folds with random forest:
 
@@ -586,11 +682,13 @@ The montage question, answered on identical rows and folds with random forest:
 | without EOG | 43 | 0.712 ±0.075 | 0.694 | 0.547 |
 | without chin EMG | 45 | 0.725 ±0.071 | 0.710 | 0.527 |
 
-**A single frontal derivation reaches κ 0.657 against 0.710 for the whole montage** — 92%
-of the agreement from one electrode pair, which is the finding a wearable would be
-designed around. Fpz-Cz beats Pz-Oz on both measures and contributes twice as much on
-removal, consistent with it being the derivation single-channel staging is usually built
-on.
+**A single frontal derivation reaches κ 0.657, against 0.710 for the whole montage.**
+Fpz-Cz is a voltage difference between two electrode sites, not one electrode; the reduced
+montage is one derivation, not one contact. It beats Pz-Oz on both measures and contributes
+twice as much on removal, consistent with it being the derivation single-channel staging is
+usually built on. Whether 0.657 is good enough is a question for a particular purpose — it
+is a promising reduced-montage result on one cohort of twenty, not a demonstration of
+wearable suitability.
 
 Two channels earn less than they look like they should. The electro-oculogram alone
 reaches κ 0.547, which is far above chance for five features — but removing it from the

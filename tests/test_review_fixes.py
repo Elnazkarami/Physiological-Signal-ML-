@@ -300,3 +300,81 @@ def test_the_checksum_moves_when_a_single_sample_does():
     array[500] = 1e-12
     after = hashlib.sha256(np.ascontiguousarray(array).tobytes()).hexdigest()
     assert before != after
+
+
+# ── 8. predictions of exactly zero fell into no calibration bin ─────────────
+
+
+def test_a_model_that_always_says_zero_is_not_perfectly_calibrated():
+    """It reported an expected calibration error of exactly 0.000.
+
+    The bins were half-open on both sides -- ``(low, high]`` -- so the first
+    was ``(0.0, 0.1]`` and a prediction of exactly 0.0 belonged to no bin at
+    all. It was dropped from the weighted average rather than counted. The
+    majority-class baseline predicts exactly 0.0 for every row, so the one
+    model in every table whose calibration is knowable by hand was the one
+    reported wrongly.
+    """
+    from physioml.evaluation.metrics import expected_calibration_error
+
+    truth = np.array([0] * 78 + [1] * 22)
+    assert expected_calibration_error(truth, np.zeros(100)) == pytest.approx(0.22)
+
+
+def test_it_agrees_with_the_brier_score_for_a_constant_answer():
+    """For a model that states one probability, the two must be consistent:
+    stating 0.0 on a set that is 22% positive is 0.22 wrong either way."""
+    from physioml.evaluation.metrics import expected_calibration_error, score
+
+    truth = np.array([0] * 78 + [1] * 22)
+    got = score(truth, np.zeros(100, dtype=int), np.zeros(100))
+    assert got.brier == pytest.approx(0.22)
+    assert got.ece == pytest.approx(0.22)
+    assert expected_calibration_error(truth, np.zeros(100)) == pytest.approx(got.brier)
+
+
+def test_a_prediction_of_exactly_one_was_always_counted():
+    """The bug was asymmetric, which is why it survived: the last bin is
+    ``(0.9, 1.0]`` and 1.0 falls inside it."""
+    from physioml.evaluation.metrics import expected_calibration_error
+
+    truth = np.array([1] * 78 + [0] * 22)
+    assert expected_calibration_error(truth, np.ones(100)) == pytest.approx(0.22)
+
+
+def test_the_omission_flattered_calibration_specifically():
+    """Isotonic regression clips to [0, 1] and reaches the endpoint where an
+    uncalibrated model does not, so its predictions were the ones being
+    dropped. A calibrator that answers zero must be scored for it."""
+    from physioml.evaluation.metrics import expected_calibration_error
+
+    truth = np.array([0] * 90 + [1] * 10)
+    calibrated_like = np.concatenate([np.zeros(90), np.zeros(10)])
+    assert expected_calibration_error(truth, calibrated_like) == pytest.approx(0.10)
+
+
+def test_a_constant_at_the_prevalence_is_well_calibrated_and_useless():
+    """The reason a calibration number needs a baseline beside it. This
+    predictor cannot tell one window from another and minimises the metric."""
+    from physioml.evaluation.metrics import expected_calibration_error, score
+
+    truth = np.array([0] * 78 + [1] * 22)
+    constant = np.full(100, 0.22)
+    assert expected_calibration_error(truth, constant) == pytest.approx(0.0, abs=0.01)
+    got = score(truth, np.zeros(100, dtype=int), constant)
+    assert got.roc_auc == pytest.approx(0.5), "no discrimination at all"
+    assert got.brier > 0.17, "and a proper scoring rule says so"
+
+
+def test_every_probability_lands_in_exactly_one_bin():
+    """The property the fix rests on, over the whole interval."""
+    from physioml.evaluation.metrics import expected_calibration_error
+
+    values = np.linspace(0.0, 1.0, 501)
+    truth = (values > 0.5).astype(int)
+    # If any value were dropped the weights would not sum to one, and a
+    # perfectly calibrated-by-construction set would not score zero.
+    assert expected_calibration_error(truth, truth.astype(float)) == pytest.approx(0.0)
+    assert expected_calibration_error(np.ones(501, dtype=int), values) == pytest.approx(
+        float(np.mean(1.0 - values)), abs=0.01
+    )

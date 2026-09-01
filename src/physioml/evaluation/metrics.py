@@ -174,10 +174,25 @@ def expected_calibration_error(
     """
     truth = np.asarray(truth, dtype=float)
     probability = np.asarray(probability, dtype=float)
+    if probability.size == 0:
+        return 0.0
+
     edges = np.linspace(0.0, 1.0, bins + 1)
     total = 0.0
-    for low, high in itertools.pairwise(edges):
-        inside = (probability > low) & (probability <= high)
+    for index, (low, high) in enumerate(itertools.pairwise(edges)):
+        # The first bin is closed at both ends. Every other is half-open on the
+        # left, so a prediction sits in exactly one. Leaving the first open too
+        # put predictions of exactly zero in no bin at all, and they were
+        # dropped from the average rather than counted: a model answering "0.00
+        # probability of stress" to every window of a set that is 22% stressed
+        # scored a calibration error of 0.000. Isotonic regression clips to
+        # [0, 1] and reaches the endpoint more often than an uncalibrated
+        # model does, so the omission flattered calibration specifically.
+        inside = (
+            (probability >= low) & (probability <= high)
+            if index == 0
+            else (probability > low) & (probability <= high)
+        )
         if not inside.any():
             continue
         total += inside.mean() * abs(truth[inside].mean() - probability[inside].mean())
