@@ -1,8 +1,8 @@
-Clinical Data Fabric System (CDFS) — Proprietary License
+PhysioML — Proprietary License
 Copyright © 2026 Elnaz Alikarami. All rights reserved.
 
-Elnaz Alikarami is the sole author and designer of the entire Clinical Data
-Fabric System — its concept, architecture, design, and implementation.
+Elnaz Alikarami is the sole author and designer of PhysioML — its concept,
+architecture, design, and implementation.
 
     Author:  Elnaz Alikarami
     GitHub:  @Elnazkarami  (https://github.com/Elnazkarami)
@@ -10,17 +10,32 @@ Fabric System — its concept, architecture, design, and implementation.
 
 TERMS
 
-This repository and all of its contents — including but not limited to source
-code, notebooks, configuration, documentation, datasets, and design assets — are
-the exclusive property of Elnaz Alikarami and are protected by copyright.
+The contents of this repository authored by Elnaz Alikarami — including but not
+limited to source code, notebooks, configuration, documentation, and design
+assets — are her exclusive property and are protected by copyright.
 
-Use of this repository for ANY purpose requires the direct, prior, written
-approval of the author. Without such approval, no person or organization is
-granted any right to use, copy, modify, merge, publish, distribute, sublicense,
-reproduce, or create derivative works from any part of this repository, in whole
-or in part, by any means or in any form.
+Use of this work for ANY purpose requires the direct, prior, written approval of
+the author. Without such approval, no person or organization is granted any
+right to use, copy, modify, merge, publish, distribute, sublicense, reproduce,
+or create derivative works from any part of it, in whole or in part, by any
+means or in any form.
 
 Unauthorized use is strictly prohibited.
+
+THIRD-PARTY DATA
+
+This repository contains no dataset. It reads two public research datasets that
+carry their own terms, and those terms govern the data, not this licence:
+
+  WESAD (Wearable Stress and Affect Detection), Schmidt et al., 2018.
+  Obtained from its authors under their stated conditions, which include
+  non-commercial research use and citation.
+
+  Sleep-EDF Database Expanded, Kemp et al., PhysioNet.
+  Open Data Commons Attribution License v1.0.
+
+Neither dataset is redistributed here. The measured results reported in this
+repository are derived from them and are subject to their attribution terms.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
