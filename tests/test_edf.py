@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from physioml.io.edf import EDF, Annotation, EDFError
-from tests.conftest import tal, write_edf
+from tests.edf_writer import tal, write_edf
 
 # ── the header ──────────────────────────────────────────────────────────────
 

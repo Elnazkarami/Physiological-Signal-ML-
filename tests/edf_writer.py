@@ -1,10 +1,15 @@
-"""Shared test helpers.
+"""A literal EDF writer, for tests that need files with known contents.
 
-The EDF writer lives here because two test modules construct files with it. It
-is deliberately literal about the format -- fixed-width ASCII fields, then
-interleaved 16-bit records -- and shares no code with the reader: a pair built
-from the same helper would agree with each other about a format neither had got
-right.
+Deliberately literal about the format -- fixed-width ASCII fields, then
+interleaved 16-bit records -- and it shares no code with the reader: a pair
+built from the same helper would agree with each other about a format neither
+had got right.
+
+**Not in conftest.py.** pytest imports conftest for every run, including the
+continuous-integration job that installs no scientific stack in order to prove
+the provenance core needs none. Putting a numpy import there broke exactly the
+guarantee that job exists to assert, and it broke it silently everywhere else,
+because every other job has numpy installed.
 """
 
 from __future__ import annotations

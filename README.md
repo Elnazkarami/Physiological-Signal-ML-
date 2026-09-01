@@ -618,7 +618,26 @@ pip install -e ".[signal,ml]"    # signal processing and models
 ```
 
 The core package has no runtime dependencies, and CI asserts that on every commit —
-including that NumPy is absent from a `[dev]`-only install.
+including that NumPy is absent from a `[dev]`-only install. To check the same thing
+locally, block the scientific stack and run the core tests against it:
+
+```bash
+mkdir -p /tmp/nostack && cat > /tmp/nostack/sitecustomize.py <<'EOF'
+import sys
+from importlib.abc import MetaPathFinder
+class Blocker(MetaPathFinder):
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] in {"numpy", "scipy", "sklearn"}:
+            raise ImportError(f"{name} is blocked")
+        return None
+sys.meta_path.insert(0, Blocker())
+EOF
+PYTHONPATH=/tmp/nostack python -m pytest tests/test_core.py -q
+```
+
+This is worth having locally because the failure mode is invisible otherwise: pytest loads
+`conftest.py` for every run, so a single numpy import placed there breaks the guarantee in
+CI while passing everywhere else.
 
 ## Reproducing the result
 

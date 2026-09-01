@@ -17,7 +17,7 @@ from physioml.io.sleep_edf import (
     SleepEDFError,
     hypnogram,
 )
-from tests.conftest import tal, write_edf
+from tests.edf_writer import tal, write_edf
 
 RATE = 100.0
 
