@@ -16,18 +16,30 @@ transformations, features, model version, and source observations that produced 
 
 ---
 
-## What this is
-
-A machine-learning layer for physiological and neural signals in which **every prediction
-can be traced back to the exact windows, transformations, features, model version and
-source observations that produced it**. Two datasets, two tasks, one pipeline:
+Two datasets, two tasks, one pipeline:
 
 - **WESAD** — wrist and chest sensors, stress against baseline, 15 participants.
 - **Sleep-EDF Expanded** — a scalp montage, five-stage sleep scoring, 20 participants.
 
-It is a companion to [CDFS](https://github.com/Elnazkarami/clinical-data-fabric-), which
-owns data integrity and provenance; the scientific dependencies live here and never enter
-that core.
+## What is in it
+
+| | |
+| --- | ---: |
+| `core` — provenance: recordings, windows, features, runs, artifacts, predictions | 945 lines |
+| `peripheral` — wrist and chest: windowing, quality control, preprocessing, 63 features | 1,844 |
+| `neural` — sleep EEG: spectra, Hjorth parameters, quality control, 48 features | 508 |
+| `io` — WESAD read from its archive, and a from-scratch EDF/EDF+ reader | 770 |
+| `evaluation` — splits, metrics, ablation, coverage, paired comparison, personalisation | 1,479 |
+| `cdfs`, `models` — the round trip, and five classical models | 696 |
+| **tests** | **4,456 lines, 350 tests** |
+
+**The provenance core has no runtime dependencies at all** — no NumPy, no SciPy — and CI
+asserts it on every commit by installing without them and running the core tests against
+that. The signal processing is written here rather than imported: band-passing, spectral
+rate estimation, R-peak detection, an EDF reader. The EDF reader is
+[cross-checked](docs/reproducing.md) against the reference C library on the real
+recordings, because a reader and a writer built by one person agree with each other about
+a format neither may have got right.
 
 ## Results
 
@@ -64,11 +76,35 @@ score reported without testing for that is uninterpretable.
 interval of [−0.073, +0.079]; personal calibration on a person's own data is *worse* than
 cohort calibration. Both were published here before they were tested properly.
 
-→ **[What survives measurement](docs/what-survives.md)** — the ledger of what is
-supported, what is withdrawn, and what is not established either way.
+### And a per-subject score that meant the opposite of what it said
 
-→ **[Defects found, and what each one cost](docs/defects.md)** — eighteen of them, four
-of which changed a published number.
+Random forest scores **0.500 balanced accuracy — chance — on subject S14, at an AUC of
+1.000.** It ranks every one of that participant's stressed windows above every calm one,
+then labels all of them negative: the probabilities it states for them average 0.045
+against a true rate of 0.223, so the whole distribution sits on one side of the threshold.
+
+Nothing was failed to be learned. A threshold was in the wrong place for one person, and
+across both datasets *every* chance-level per-subject result turned out to be the same
+thing. Reporting only balanced accuracy had been calling these participants failures.
+
+## How the results were checked
+
+Each of these was added after something got through without it:
+
+| | |
+| --- | --- |
+| **A majority-class row in every table** | It is the one model whose score is knowable by hand — and it is what exposed a calibration-metric bug that a reviewer spotted from an inconsistency between two numbers, without seeing the code. |
+| **Paired intervals over participants** | 8,057 windows look like a large sample and are fifteen people. Two published claims did not survive this. |
+| **Per-subject AUC beside accuracy** | See S14 above. |
+| **Coverage beside performance** | The chest pipeline scores well and cannot produce any usable prediction for one participant in fifteen. |
+| **A constant-probability baseline** | Expected calibration error is *minimised* by stating the base rate: a constant scores the best calibration in the table at an AUC of exactly 0.500. |
+| **Manifests** | Three tables have been rebuilt here, so "were these computed on the same thing" is a live question. |
+
+→ **[What survives measurement](docs/what-survives.md)** — supported, withdrawn, and not
+established either way.
+
+→ **[Defects found, and what each cost](docs/defects.md)** — eighteen, four of which
+changed a published number.
 
 ## Traceability, closed and tested
 
@@ -86,12 +122,14 @@ loop](docs/architecture.md)
 
 ## What is not claimed
 
-The scores above are not evidence that this measures stress. WESAD's stress condition has
-participants standing and speaking, so movement, speech and signal quality all track the
-label, and removing the accelerometer does not remove those influences from the remaining
-sensors. Two things that were published here have since been withdrawn under measurement,
-and one — personal calibration — fails outright when run in the only order a deployment
-could use it. The [ledger](docs/what-survives.md) keeps all of it.
+The scores above are not evidence that this measures stress. Removing the accelerometer
+does not remove movement, speech or artifact from the sensors that remain, and this
+protocol has stressed participants standing and talking. Fifteen participants is a small
+cohort and the intervals say so. Nothing here has been validated on a second session, a
+different protocol, or anyone outside these two datasets.
+
+The [ledger](docs/what-survives.md) keeps the withdrawn claims beside the surviving ones,
+struck through rather than deleted.
 
 ## Reading order
 

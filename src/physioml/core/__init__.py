@@ -6,7 +6,7 @@ the training run behind it — can be constructed and tested without installing
 numpy, and CI asserts that it stays that way.
 
 The computation lives elsewhere. :mod:`physioml.peripheral` and
-:mod:`physioml.eeg` produce features, :mod:`physioml.models` produce
+:mod:`physioml.neural` produce features, :mod:`physioml.models` produce
 predictions, and both express their results in these types.
 """
 
