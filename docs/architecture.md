@@ -72,6 +72,50 @@ the input that changed is the answer to the question a reviewer is actually aski
 Python, so it can be constructed and tested without installing a scientific stack — if
 the provenance model ever needs NumPy to be exercised, it has grown into something else.
 
+### What one prediction actually looks like in CDFS
+
+Not a description — this is printed from the running deployment the integration tests use
+([`tests/test_cdfs_integration.py`](../tests/test_cdfs_integration.py)):
+
+```json
+{
+  "fact_id": "c26696e68163f3b9c322f67adde1bcbd…",
+  "coordinate": {
+    "study_id": "CARDIO-FX-01",
+    "subject_id": "CARDIO-01-001",
+    "domain": "ML",
+    "field": "predicted_event_risk"
+  },
+  "value": "elevated",
+  "source_system": "PHYSIOML",
+  "transform_id": "cv_rf@1.2.0",
+  "derived_from": [
+    "fa0a1e245b374aeaef1a3497706bf24e…",
+    "7c2a81acddadd6fd771ba2d36193f9df…"
+  ],
+  "entered_by": "physioml",
+  "recorded_at": "2026-09-02T15:56:55.926813+00:00",
+  "source_record_ref": "prediction=pred-9032e5e2f11260…;features=feat-d6c5219bbfc744…;windows=win-000621d87ad322…;training_run=trun-da69ece0aaa0dc…;feature_set=1.0;start=2026-03-01T22:00:00+00:00;end=2026-03-01T22:00:30+00:00"
+}
+```
+
+Two identifier systems meet in that record and neither is guessed at. **`derived_from`
+carries CDFS fact ids** — the observations, which CDFS validates and would reject if
+invented. **`source_record_ref` carries PhysioML's own chain** — the prediction, the
+features, the window, the training run, the feature-set version, and the exact interval in
+time. CDFS never has to learn what a window is; PhysioML never has to invent a fact id.
+
+One lineage query on that fact reaches five ancestors:
+
+```
+weight_kg  = 53.6      height_cm = 180.5      weight_kg = 54.8
+bmi        = 16.82     bmi       = 16.45
+```
+
+— the derived body-mass indices the model consumed, and the raw measurements those were
+computed from. That is the whole claim, in one request: from a model output to the numbers
+a site recorded.
+
 ### The other direction of the cascade
 
 The loop above starts with a correction upstream. The other one starts here: a
@@ -84,6 +128,13 @@ QC policy revised  →  windows that passed now carry reason codes
                    →  every prediction using those features is stale
                    →  and the CDFS facts those predictions rest on, to replace
 ```
+
+This runs end to end against the same deployment
+([`test_a_quality_revision_invalidates_a_prediction_and_the_replacement_stands`](../tests/test_cdfs_integration.py)):
+a revision rejects a window, `invalidated_by` finds the feature and the prediction that
+came from it and names the CDFS facts to write against, the replacement is posted, and the
+retired value leaves a chain whose reason says what the policy objected to — *"recomputed
+after a quality-control revision rejected the source window (motion, no_pulse)"*.
 
 It is expressible for one reason, decided early: **a window's identity is the physical
 slice, not the quality verdict on it.** Re-judging under a stricter policy does not

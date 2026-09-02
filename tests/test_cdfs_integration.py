@@ -27,6 +27,7 @@ from physioml.core import (
     Recording,
     SignalWindow,
     TrainingRun,
+    invalidated_by,
 )
 from tests.paths import CDFS_MISSING, CDFS_REPO
 
@@ -439,3 +440,106 @@ def test_a_prediction_cannot_replace_an_observation(deployment):
             reason="attempting to overwrite an observation",
         )
     assert caught.value.status == 400
+
+
+# ── the other direction: a quality-control revision ─────────────────────────
+
+
+def test_a_quality_revision_invalidates_a_prediction_and_the_replacement_stands(
+    deployment,
+):
+    """The physiological half of the cascade, end to end against a real CDFS.
+
+    The other integration test starts with a clinical correction: a weight is
+    wrong, the engine recomputes the body-mass index it derived, and the
+    prediction downstream goes stale. This one starts where the signal is. A
+    quality-control policy is revised, a window that used to pass is now an
+    artifact, and everything computed from it has to be found and replaced --
+    inside PhysioML first, then across the boundary.
+    """
+    client, _service, _loader = deployment
+    subject = "CARDIO-01-003"
+
+    observations = client.subject_values(STUDY_ID, subject)
+    original, used = build_prediction(observations, subject=subject)
+    written = client.write_predictions(
+        STUDY_ID,
+        [original],
+        field="predicted_event_risk",
+        confidence_field="predicted_event_confidence",
+    )
+    assert written["written"] == 2
+
+    # ── the revision ────────────────────────────────────────────────────────
+    # A better artifact detector now rejects the window this rested on. The
+    # window's identity does not change, which is what makes the next line
+    # possible at all.
+    window_id = original.source_window_ids[0]
+    feature = Feature.create(
+        subject_id=subject,
+        name="hr_mean",
+        value=72.4,
+        unit="bpm",
+        feature_set="peripheral-basic",
+        feature_set_version="1.0",
+        source_window_ids=(window_id,),
+    )
+    reached = invalidated_by({window_id: ("motion", "no_pulse")}, [feature], [original])
+
+    assert reached, "the revision should reach something"
+    assert reached.windows == (window_id,)
+    assert original.prediction_id in reached.predictions
+    assert set(reached.source_fact_ids) == set(used), (
+        "and it should name the CDFS facts the replacement has to be written against"
+    )
+
+    # ── the replacement ─────────────────────────────────────────────────────
+    recomputed = replace(
+        original,
+        predicted_class="low",
+        probability=0.22,
+        source_window_ids=(f"{window_id}-rescored",),
+    )
+    stale = live_prediction(client, subject=subject)
+    assert stale is not None
+
+    result = client.replace_prediction(
+        STUDY_ID,
+        recomputed,
+        field="predicted_event_risk",
+        supersedes=stale["fact_id"],
+        reason=(
+            "recomputed after a quality-control revision rejected the source "
+            f"window ({', '.join(reached.reasons[window_id])})"
+        ),
+    )
+    assert result["written"] == 1
+
+    # ── what a reviewer sees ────────────────────────────────────────────────
+    current = live_prediction(client, subject=subject)
+    assert current is not None
+    assert current["value"] == "low", "the value computed from the artifact is retired"
+
+    history = client.lineage(current["fact_id"])["history"]
+    assert [h["fact_id"] for h in history] == [stale["fact_id"], current["fact_id"]]
+    assert "quality-control revision" in history[-1]["reason"]
+    assert "motion" in history[-1]["reason"], "and it names what the policy objected to"
+
+    # The chain still reaches the observations, through the new value.
+    lineage = client.lineage(current["fact_id"])
+    assert {a["fact_id"] for a in lineage["ancestors"]} & set(used)
+
+
+def test_a_revision_that_rejects_nothing_leaves_the_prediction_in_force(deployment):
+    """The control. A policy change that clears no window changes nothing."""
+    client, _service, _loader = deployment
+    subject = "CARDIO-01-003"
+    before = live_prediction(client, subject=subject)
+    assert before is not None
+
+    reached = invalidated_by({}, [], [])
+    assert not reached
+
+    after = live_prediction(client, subject=subject)
+    assert after is not None
+    assert after["fact_id"] == before["fact_id"]
