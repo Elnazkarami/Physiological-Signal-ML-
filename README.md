@@ -515,23 +515,52 @@ wrist band buys **0.036 balanced accuracy and costs 0.143 on the worst subject**
 cardiac features do carry signal — they are just more subject-specific than the wrist's,
 which is what an inter-individual SDNN range of 40 to 100 ms would predict.
 
-### One subject is missing from that table
+### Coverage is the other half of the comparison
 
-S16's electrocardiogram clips against the amplifier rail, and it does so much more in the
-stress condition — 2.9% of samples against 1.5% at baseline. The quality-control rule
-that catches it therefore rejects that participant's **entire positive class**, and the
-detector's output for those windows is not physiology anyway: 128 bpm with an RMSSD of
-6.9 ms, which is the shape of a detector tracking a flat clipped plateau.
+Excluding a participant whose signal quality control rejected is honest and insufficient.
+The table above answers *when the inputs are available, how good is the prediction* — and
+silently drops the question that matters at least as much for anything worn: **how often
+are they available?**
 
-That is a quality-control threshold correlated with the label, which is worth stating
-plainly rather than tuning until it goes away.
+| configuration | rows | subjects | scorable | stress windows | cannot be scored |
+| --- | ---: | ---: | ---: | ---: | --- |
+| wrist only | 8,057 | 15 | **15** | 1,787 | — |
+| wrist + chest | 7,828 | 15 | **14** | 1,641 | S16 |
+| chest only | 7,828 | 15 | **14** | 1,641 | S16 |
 
-It also exposed a bug of my own. A fold whose test subject has only one class cannot yield
-a balanced accuracy — it is the mean of per-class recall, and an absent class has none.
-Scored anyway it returns 1.0 or 0.0 for whichever class is present. It showed up as **the
-majority-class baseline scoring 0.533 instead of exactly 0.500**, which is the reason that
-row is in every table. Such folds are now skipped and the subject is named in the output,
-because a mean over fourteen subjects reported as though it were fifteen is a quiet lie.
+Adding the chest strap costs a whole participant. Retention of the wrist table's windows,
+by condition, for the two people who lose any:
+
+| subject | amusement | baseline | meditation | stress |
+| --- | ---: | ---: | ---: | ---: |
+| S16 | 0.18 | 1.00 | 1.00 | **0.00** |
+| S3 | 1.00 | 0.94 | 0.94 | 0.78 |
+| everyone else | ≈1.00 | ≈1.00 | ≈1.00 | ≈1.00 |
+
+**S16 retains none of its stress windows.** Its electrocardiogram clips against the
+amplifier rail, and it clips more during the stress condition — 2.9% of samples against
+1.5% at baseline — so the rule that catches it removes that participant's entire positive
+class. The detector's output there is not physiology anyway: 128 bpm with an RMSSD of
+6.9 ms is a detector tracking a flat clipped plateau. A quality-control threshold that
+correlates with the label is worth stating rather than tuning until it disappears.
+
+So the chest-dependent pipeline produces **no usable prediction at all** for that person.
+A comparison that reports performance after exclusion and stops there recommends the
+strap.
+
+On the fourteen participants every configuration can answer for — the only cohort on which
+the devices can be compared without also measuring who each of them dropped:
+
+| configuration | bal. accuracy | AUC | worst subject | worst ranking |
+| --- | ---: | ---: | ---: | ---: |
+| wrist only | 0.882 ±0.071 | 0.946 | **0.701** | 0.840 |
+| chest only | 0.881 ±0.140 | 0.974 | 0.500 | 0.869 |
+| wrist + chest | **0.892 ±0.128** | **0.979** | 0.500 | 0.872 |
+
+**On the common subset the strap buys 0.010 balanced accuracy, doubles the spread, and
+takes the worst participant from 0.701 to a threshold failure.** Off the common subset it
+also costs one participant in fifteen entirely. Those are the two numbers a decision about
+hardware needs, and neither of them is the cohort mean.
 
 ## Personal calibration on short labelled blocks — a negative result
 

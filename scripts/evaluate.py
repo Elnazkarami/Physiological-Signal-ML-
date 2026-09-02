@@ -35,6 +35,16 @@ def main() -> None:
     table = FeatureTable.load(args.table)
     print(table.summary())
     multiclass = args.positive == "none"
+    if not multiclass:
+        from physioml.evaluation.coverage import coverage_of
+
+        found = coverage_of(table, "this table")
+        unscorable = found.missing(args.positive)
+        if unscorable:
+            print(
+                f"cannot be scored: {', '.join(unscorable)} -- no {args.positive} "
+                "windows survived, so the cohort below is smaller than it looks"
+            )
     if multiclass:
         print(f"{len(table.counts())}-class task: {table.counts()}")
     else:
