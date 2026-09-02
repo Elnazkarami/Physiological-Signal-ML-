@@ -47,6 +47,10 @@ Each row links to the test that now pins it.
 | Dataset paths from the environment | every dataset test skipped silently on any machine but one |
 | A manifest naming the folds behind a number | three tables have been rebuilt so far |
 
+The last of these caught itself: adding the independent EDF reader to the `dev` extra
+pulled NumPy in behind it, and the job that proves the provenance core needs no scientific
+stack failed on the next push. It is in its own extra now.
+
 ## Rules that came out of these
 
 - A metric that cannot be checked by hand on a trivial input is not trusted. The majority

@@ -50,8 +50,8 @@ jobs:
         run: pytest tests/test_core.py -q
 
       # ── everything else, which does need one ────────────────────────────────
-      - name: Install the signal and ML extras
-        run: pip install -e ".[dev,signal,ml]"
+      - name: Install the signal, ML and reference extras
+        run: pip install -e ".[dev,signal,ml,reference]"
 
       - name: Lint
         run: ruff check src tests

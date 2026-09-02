@@ -29,9 +29,14 @@ numbers were computed on the same thing becomes the only one that matters.
 
 ## Checking the EDF reader against another implementation
 
+`pyedflib` is in its own extra rather than in `dev`, because it depends on NumPy and `dev`
+alone has to stay free of a scientific stack — otherwise the CI job that proves the
+provenance core needs none is proving nothing. Putting it in `dev` broke that job within
+one commit, which is what the job is for.
+
 The reader is tested against files this repository writes, which is necessary and not
 sufficient: a reader and a writer built by one person agree with each other about a format
-neither may have got right. `pip install -e ".[dev]"` brings in `pyedflib`, a wrapper
+neither may have got right. `pip install -e ".[reference]"` brings in `pyedflib`, a wrapper
 around the reference C library, and the cross-check runs on the real recordings — sample
 counts, mixed sampling rates in one file, physical scaling, and every annotation onset,
 duration and label. Values agree to about 1e-13.

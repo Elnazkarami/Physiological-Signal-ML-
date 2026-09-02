@@ -20,9 +20,14 @@ dependencies = []
 [project.optional-dependencies]
 signal = ["numpy>=1.26", "scipy>=1.11"]
 ml     = ["numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4"]
-# pyedflib is a test dependency only: an independent EDF reader, used to
-# cross-check ours against the reference C library on the real recordings.
-dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6", "pyedflib>=0.1.30"]
+dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6"]
+
+# An independent EDF reader, used to cross-check ours against the reference C
+# library on the real recordings. Deliberately *not* in `dev`: it depends on
+# numpy, and `dev` alone has to stay free of a scientific stack so the job that
+# proves the provenance core needs none is proving something. Putting it there
+# broke that job in one commit, which is what the job is for.
+reference = ["pyedflib>=0.1.30"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
