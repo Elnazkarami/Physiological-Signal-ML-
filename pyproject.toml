@@ -19,9 +19,10 @@ dependencies = []
 
 [project.optional-dependencies]
 signal = ["numpy>=1.26", "scipy>=1.11"]
-eeg    = ["numpy>=1.26", "scipy>=1.11", "mne>=1.6"]
 ml     = ["numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4"]
-dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6"]
+# pyedflib is a test dependency only: an independent EDF reader, used to
+# cross-check ours against the reference C library on the real recordings.
+dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6", "pyedflib>=0.1.30"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -58,6 +58,50 @@ published for feature-based automatic staging under subject-wise validation**, w
 the check that matters here: the pipeline is new, the task is not, and a number far outside
 that range would mean something was wrong rather than something was discovered.
 
+### The features, in full
+
+Twenty per electroencephalogram derivation, five from the electro-oculogram, three from
+the chin electromyogram. Each derivation's features are prefixed with its own name
+(`fpz_`, `pz_`), so a fused row holds both without one silently overwriting the other.
+
+Spectra are estimated by Welch on 4-second segments — long enough to resolve delta, which
+starts at 0.5 Hz and would otherwise be a single bin, and short enough that a 30-second
+epoch holds several to average. Band power is integrated by the trapezium rule rather than
+summed over bins, so the answer does not depend on the frequency resolution and a
+30-second epoch agrees with a 20-second one about the same signal. No filtering is applied
+before the spectrum; the bands do the selecting.
+
+| feature | definition | unit |
+| --- | --- | --- |
+| `<ch>_delta` … `<ch>_beta` | integrated power in 0.5–4, 4–8, 8–12, 12–16, 16–30 Hz | µV²·Hz |
+| `<ch>_delta_rel` … `<ch>_beta_rel` | the same, divided by power in 0.5–30 Hz | fraction |
+| `<ch>_delta_theta_ratio` | delta ÷ theta — slow-wave dominance, which is what separates N3 | ratio |
+| `<ch>_alpha_beta_ratio` | alpha ÷ beta — the balance that moves between REM and light sleep | ratio |
+| `<ch>_hjorth_activity` | variance of the signal | µV² |
+| `<ch>_hjorth_mobility` | sd of the first difference ÷ sd of the signal; for a sampled sine, exactly 2·sin(πf/rate) | dimensionless |
+| `<ch>_hjorth_complexity` | mobility of the first difference ÷ mobility; 1.0 for a pure sine | dimensionless |
+| `<ch>_entropy` | Shannon entropy of the normalised spectrum ÷ log(bins) | 0–1 |
+| `<ch>_edge95` | frequency below which 95% of the power lies | Hz |
+| `<ch>_total_power` | integrated power, 0.5–30 Hz | µV²·Hz |
+| `<ch>_amplitude_p95` | 95th percentile of \|signal\| | µV |
+| `<ch>_zero_crossings` | mean-crossings per second | Hz |
+| `eog_slow_power` | integrated power, 0.3–2 Hz — where eye movements live | µV²·Hz |
+| `eog_slow_rel` | the same ÷ power in 0.3–15 Hz | fraction |
+| `eog_amplitude_sd`, `eog_amplitude_p95`, `eog_range` | deflection size | µV |
+| `chin_emg_rms`, `chin_emg_p95`, `chin_emg_range` | muscle tone, mean removed first so an electrode offset is not tension | µV |
+
+**Relative band power is emitted beside absolute** because absolute amplitude varies
+several-fold between people for reasons unrelated to sleep — skull thickness, electrode
+impedance, the amplifier's gain that night — and a model trained on one participant's
+microvolts and tested on another's is being asked to generalise across the wrong thing.
+
+Sigma is separated from beta because sleep spindles live at 12–16 Hz and are one of the
+defining features of stage 2; folded into a wide beta band they are invisible.
+
+Relative power is normalised over 0.5–30 Hz and not the whole spectrum: above 30 Hz a
+scalp recording is largely muscle, and dividing by it would make every relative figure a
+function of how tense the participant's jaw was.
+
 ### Which model is better depends on which stage you care about
 
 | per-stage recall | N1 | N2 | N3 | REM | W |
@@ -73,10 +117,23 @@ the stage that is 6% of it. Neither is the right answer in general; they are ans
 different questions, and reporting only one would hide that there was a choice.
 
 N1 is the stage every automatic scorer fails on, and the confusion says why it is hard
-rather than which model is bad. Of the N1 epochs random forest gets wrong, **31% go to REM
-and 21% to wake** — N1 is the transition into sleep and shares its theta with REM, and it
-is also the stage human scorers agree on least. A model that confuses N1 with REM and wake
-is failing the way the problem fails.
+rather than which model is bad. Random forest, summed over the twenty folds — rows are the
+scorer's label, columns the model's:
+
+| scored → | N1 | N2 | N3 | REM | W | recall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **N1** | **429** | 156 | 5 | 385 | 265 | 0.346 |
+| **N2** | 281 | **7,510** | 445 | 751 | 213 | 0.816 |
+| **N3** | 11 | 274 | **2,638** | 4 | 54 | 0.885 |
+| **REM** | 323 | 468 | 6 | **2,786** | 173 | 0.742 |
+| **W** | 227 | 69 | 23 | 173 | **2,957** | 0.857 |
+
+Of the N1 epochs it gets wrong, **31% go to REM and 21% to wake** — N1 is the transition
+into sleep, shares its theta with REM, and is the stage human scorers agree on least. A
+model that confuses N1 with REM and wake is failing the way the problem fails. The other
+large cell is REM read as N2 (468) and N2 read as REM (751), which is the same boundary
+seen from both sides. N3 is barely confused with anything: slow-wave sleep looks like
+nothing else.
 
 ### One EEG derivation gets most of the way
 
