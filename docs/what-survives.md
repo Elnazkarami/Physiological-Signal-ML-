@@ -32,6 +32,16 @@ not, and an interval built from windows would be far too narrow.
 | ~~"Isotonic calibration leaves AUC unchanged."~~ | It is monotone *non-decreasing*; its flat regions create ties. 0.954 → 0.951. |
 | ~~"A majority baseline has an ECE of 0.000."~~ | 0.222 — equal to its Brier score, as it must be. The bin edges were dropping predictions of exactly zero. |
 
+## Verified rather than asserted
+
+| claim | how |
+| --- | --- |
+| **The EDF files are read correctly.** | Cross-checked against pyedflib — a wrapper on the reference C library — on the real recordings: record counts, per-channel sample counts, mixed 100 Hz and 1 Hz rates in one file, physical scaling (agreeing to ~1e-13), and every annotation onset, duration and label. |
+| **No participant appears on both sides of a split.** | Asserted across all three split strategies and again at the end of a real evaluation. |
+| **Quality control is applied before features are computed.** | `extract` requires a verdict; it cannot be called without one. |
+| **A window's identity survives a quality-control revision.** | Tested directly, which is what makes the invalidation walk possible at all. |
+| **The core needs no scientific stack.** | CI installs `[dev]` only, asserts NumPy is absent, and runs the provenance tests against that. Reproducible locally with an import blocker. |
+
 ## Not established either way
 
 - **Whether removing accelerometry leaves a confound-free physiological score.** It does

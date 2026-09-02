@@ -84,6 +84,15 @@ Asserted against a running CDFS deployment rather than a mock — including that
 correction leaves exactly one prediction in force afterwards. → [architecture and the
 loop](docs/architecture.md)
 
+## What is not claimed
+
+The scores above are not evidence that this measures stress. WESAD's stress condition has
+participants standing and speaking, so movement, speech and signal quality all track the
+label, and removing the accelerometer does not remove those influences from the remaining
+sensors. Two things that were published here have since been withdrawn under measurement,
+and one — personal calibration — fails outright when run in the only order a deployment
+could use it. The [ledger](docs/what-survives.md) keeps all of it.
+
 ## Reading order
 
 | | |
@@ -95,7 +104,7 @@ loop](docs/architecture.md)
 | [Sleep staging](docs/sleep.md) | Five stages, and one EEG derivation |
 | [Datasets and features](docs/datasets.md) | Both cohorts, and a feature set that was removed |
 | [Architecture](docs/architecture.md) | Provenance types and the CDFS round trip |
-| [Defects](docs/defects.md) | What was wrong, and what it cost |
+| [Defects](docs/defects.md) | Eighteen of them, and what each cost |
 | [Reproducing](docs/reproducing.md) | Every number, from a command |
 
 ## Install

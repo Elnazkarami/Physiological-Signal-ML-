@@ -35,6 +35,18 @@ Each row links to the test that now pins it.
 | **A fold with one class was scored anyway** | Balanced accuracy is the mean of per-class recall, and an absent class has none. It surfaced as a majority baseline reporting **0.533 instead of 0.500**. |
 | **A test helper broke the no-dependency guarantee** | `conftest.py` is imported by every run, including the CI job that installs no scientific stack to prove the core needs none. |
 
+## What is checked now that was not
+
+| check | added after |
+| --- | --- |
+| EDF reader against an independent implementation on real files | the reviewer noted synthetic fixtures cannot establish correct handling of real ones |
+| A constant-probability baseline beside every calibration claim | ECE turned out to be minimised by stating the base rate |
+| Paired intervals over participants for every difference | two claims had been published on bare means |
+| Per-subject AUC beside per-subject accuracy | a threshold failure had been reported as a model learning nothing |
+| Coverage beside performance | excluding a participant had been reported without saying one was excluded |
+| Dataset paths from the environment | every dataset test skipped silently on any machine but one |
+| A manifest naming the folds behind a number | three tables have been rebuilt so far |
+
 ## Rules that came out of these
 
 - A metric that cannot be checked by hand on a trivial input is not trusted. The majority
