@@ -81,6 +81,13 @@ class Scores:
 
     per_subject_rate: dict[str, float] = field(default_factory=dict)
 
+    per_subject_kappa: dict[str, float] = field(default_factory=dict)
+    """Cohen's kappa per held-out subject.
+
+    The per-participant form of the metric sleep staging is reported in, and
+    what lets a difference between two montages carry an interval rather than
+    being two point estimates set beside each other."""
+
     confusion: tuple[tuple[int, ...], ...] = ()
 
     @property
@@ -134,6 +141,7 @@ def score(
     per_subject_auc: dict[str, float] = {}
     per_subject_stated: dict[str, float] = {}
     per_subject_rate: dict[str, float] = {}
+    per_subject_kappa: dict[str, float] = {}
     if subjects is not None:
         for subject in np.unique(subjects):
             rows = subjects == subject
@@ -144,6 +152,7 @@ def score(
             name = str(subject)
             per_subject[name] = float(balanced_accuracy_score(truth[rows], predicted[rows]))
             per_subject_rate[name] = float(np.mean(truth[rows] == 1))
+            per_subject_kappa[name] = float(cohen_kappa_score(truth[rows], predicted[rows]))
             if probability is not None and binary:
                 per_subject_auc[name] = float(roc_auc_score(truth[rows], probability[rows]))
                 per_subject_stated[name] = float(np.mean(probability[rows]))
@@ -174,6 +183,7 @@ def score(
         per_subject_auc=per_subject_auc,
         per_subject_stated=per_subject_stated,
         per_subject_rate=per_subject_rate,
+        per_subject_kappa=per_subject_kappa,
         confusion=tuple(
             tuple(int(v) for v in row)
             for row in confusion_matrix(truth, predicted, labels=present)
@@ -265,4 +275,7 @@ def aggregate(folds: list[Scores]) -> dict[str, float]:
     if per_auc:
         summary["worst_subject_auc"] = min(per_auc.values())
         summary["per_subject_auc_mean"] = float(np.mean(list(per_auc.values())))
+    per_kappa = {s: v for f in folds for s, v in f.per_subject_kappa.items()}
+    if per_kappa:
+        summary["worst_subject_kappa"] = min(per_kappa.values())
     return summary

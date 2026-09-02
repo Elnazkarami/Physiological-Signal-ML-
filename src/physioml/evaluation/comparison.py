@@ -84,6 +84,8 @@ def _scores(evaluation: Evaluation, metric: str) -> dict[str, float]:
         return {s: v for f in evaluation.folds for s, v in f.per_subject.items()}
     if metric == "auc":
         return {s: v for f in evaluation.folds for s, v in f.per_subject_auc.items()}
+    if metric == "kappa":
+        return {s: v for f in evaluation.folds for s, v in f.per_subject_kappa.items()}
     raise ValueError(f"unknown per-subject metric {metric!r}")
 
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 
 from physioml.dataset import FeatureTable
-from physioml.evaluation.ablation import signal_groups
+from physioml.evaluation.ablation import channel_groups, device_groups, signal_groups
 from physioml.evaluation.comparison import paired_difference, table
 from physioml.evaluation.run import evaluate
 from physioml.evaluation.splits import leave_one_subject_out
@@ -30,9 +30,21 @@ def main() -> None:
         nargs="*",
         help="signal groups to remove one at a time; default is every group",
     )
-    parser.add_argument("--positive", default="stress")
     parser.add_argument(
-        "--metric", default="balanced_accuracy", choices=("balanced_accuracy", "auc")
+        "--positive",
+        default="stress",
+        help="positive class, or 'none' to score every label as its own class",
+    )
+    parser.add_argument(
+        "--metric",
+        default="balanced_accuracy",
+        choices=("balanced_accuracy", "auc", "kappa"),
+    )
+    parser.add_argument(
+        "--by",
+        default="signal",
+        choices=("signal", "device", "channel"),
+        help="what a group is: one sensor, one whole device, or one recording channel",
     )
     args = parser.parse_args()
 
@@ -45,11 +57,15 @@ def main() -> None:
             MODELS[args.model],
             leave_one_subject_out(loaded.subject_ids),
             model_name=name,
-            positive=args.positive,
+            positive=None if args.positive == "none" else args.positive,
         )
 
     whole = run(list(loaded.feature_names), "everything")
-    groups = signal_groups()
+    groups = {
+        "signal": signal_groups,
+        "device": device_groups,
+        "channel": channel_groups,
+    }[args.by]()
     chosen = args.against or [
         g for g, names in groups.items() if any(n in loaded.feature_names for n in names)
     ]
