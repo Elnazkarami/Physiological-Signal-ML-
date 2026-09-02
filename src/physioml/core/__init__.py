@@ -11,6 +11,7 @@ predictions, and both express their results in these types.
 """
 
 from physioml.core.feature import Feature, FeatureVector
+from physioml.core.invalidation import Invalidated, invalidated_by
 from physioml.core.prediction import Prediction
 from physioml.core.provenance import content_id, utc
 from physioml.core.recording import Modality, Recording
@@ -20,6 +21,7 @@ from physioml.core.window import QCStatus, SignalWindow
 __all__ = [
     "Feature",
     "FeatureVector",
+    "Invalidated",
     "Modality",
     "ModelArtifact",
     "Prediction",
@@ -29,5 +31,6 @@ __all__ = [
     "SignalWindow",
     "TrainingRun",
     "content_id",
+    "invalidated_by",
     "utc",
 ]

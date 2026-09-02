@@ -12,6 +12,7 @@ Requires the ml extra: ``pip install -e ".[ml]"``.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from physioml.dataset import FeatureTable
 from physioml.evaluation.run import evaluate
@@ -29,6 +30,10 @@ def main() -> None:
         "--calibrated",
         action="store_true",
         help="also offer each model with probabilities calibrated on held-out subjects",
+    )
+    parser.add_argument(
+        "--manifest",
+        help="write the folds, features and versions behind these numbers to a JSON file",
     )
     args = parser.parse_args()
 
@@ -100,6 +105,23 @@ def main() -> None:
             )
         else:
             print(result.line(), flush=True)
+
+    if args.manifest:
+        import json
+
+        from physioml.evaluation.run import manifest
+
+        written = {
+            "table": args.table,
+            "rows": len(table),
+            "subjects": table.subject_ids,
+            "feature_set_version": table.feature_set_version,
+            "qc_policy_version": table.qc_policy_version,
+            "counts": table.counts(),
+            "evaluations": [manifest(r) for r in results.values()],
+        }
+        Path(args.manifest).write_text(json.dumps(written, indent=2, sort_keys=True))
+        print(f"\nmanifest written to {args.manifest}")
 
     unscored = sorted({s for r in results.values() for s in r.skipped})
     if unscored:

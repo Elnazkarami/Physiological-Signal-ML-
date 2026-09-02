@@ -13,6 +13,20 @@ Neither dataset can be redistributed, so the tests and scripts ask where yours a
 Tests that need a dataset skip with a message naming the variable to set. Nothing fails
 because a file is missing, and nothing passes silently because it was never run.
 
+## Recording what produced a number
+
+Any evaluation can write a manifest:
+
+```bash
+python scripts/evaluate.py wesad_features.npz --manifest run.json
+```
+
+It records the rows and subject list, the feature-set and QC-policy versions the table was
+built under, and for every fold: which participants trained and which was held out, the
+split strategy and seed, and the identifier of the training run. A results table without
+one is an assertion — and the moment any table is rebuilt, the question of whether two
+numbers were computed on the same thing becomes the only one that matters.
+
 ## Checking the EDF reader against another implementation
 
 The reader is tested against files this repository writes, which is necessary and not

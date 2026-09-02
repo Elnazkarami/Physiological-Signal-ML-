@@ -71,6 +71,37 @@ def _fit(model: Any, X: np.ndarray, y: np.ndarray, subjects: np.ndarray) -> None
         model.fit(X, y)
 
 
+def manifest(evaluation: Evaluation) -> dict[str, Any]:
+    """Everything needed to say what produced a number.
+
+    A results table without one is an assertion. This records the folds, the
+    feature columns, the versions the table was built under, and the identity
+    of each training run -- so a later reader can tell whether two tables were
+    computed on the same thing, which is the question that arises the moment
+    any of it is rebuilt.
+    """
+    return {
+        "model": evaluation.model_name,
+        "task": evaluation.task,
+        "features": list(evaluation.feature_names),
+        "n_features": len(evaluation.feature_names),
+        "folds": [
+            {
+                "test": list(run.test_subjects),
+                "train": list(run.train_subjects),
+                "strategy": run.split_strategy,
+                "seed": run.random_seed,
+                "training_run_id": run.training_run_id,
+                "feature_schema_version": run.feature_schema_version,
+                "preprocessing_version": run.preprocessing_version,
+            }
+            for run in evaluation.runs
+        ],
+        "skipped_subjects": list(evaluation.skipped),
+        "summary": evaluation.summary,
+    }
+
+
 def evaluate(
     table: FeatureTable,
     model_factory,

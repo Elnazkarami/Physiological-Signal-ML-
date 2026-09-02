@@ -72,6 +72,31 @@ the input that changed is the answer to the question a reviewer is actually aski
 Python, so it can be constructed and tested without installing a scientific stack — if
 the provenance model ever needs NumPy to be exercised, it has grown into something else.
 
+### The other direction of the cascade
+
+The loop above starts with a correction upstream. The other one starts here: a
+quality-control policy is revised, windows that used to pass now fail, and everything
+computed from them has to be found.
+
+```
+QC policy revised  →  windows that passed now carry reason codes
+                   →  every feature naming one of them is invalid
+                   →  every prediction using those features is stale
+                   →  and the CDFS facts those predictions rest on, to replace
+```
+
+It is expressible for one reason, decided early: **a window's identity is the physical
+slice, not the quality verdict on it.** Re-judging under a stricter policy does not
+produce a different window, so the features that named it still name it. Had the verdict
+entered the identity, a revision would have minted new identifiers with nothing pointing
+at them, and the features derived from the old ones would refer to windows that no longer
+exist — the same information, arranged so it could not be used. A test asserts that
+re-judging leaves the identifier unchanged and that the walk still finds it.
+
+A feature spanning two windows is invalid if *either* is rejected. A feature computed
+across an artifact and a clean window is a feature computed across an artifact; it is not
+partly right.
+
 ### Five things it refuses
 
 These are the load-bearing behaviours, and each has a test:

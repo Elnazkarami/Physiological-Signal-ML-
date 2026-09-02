@@ -640,3 +640,76 @@ def test_the_summary_carries_the_worst_ranking_not_only_the_worst_label():
     assert "worst_subject_auc" in result.summary
     assert "per_subject_auc_mean" in result.summary
     assert result.summary["worst_subject_auc"] <= result.summary["per_subject_auc_mean"]
+
+
+# ── manifests ───────────────────────────────────────────────────────────────
+
+
+def test_a_manifest_names_the_folds_the_numbers_came_from():
+    """A results table without one is an assertion."""
+    from physioml.evaluation.run import manifest
+
+    made = table()
+    result = evaluate(
+        made,
+        MODELS["logistic"],
+        leave_one_subject_out(made.subject_ids),
+        model_name="logistic",
+    )
+    found = manifest(result)
+
+    assert len(found["folds"]) == len(SUBJECTS)
+    assert [f["test"][0] for f in found["folds"]] == SUBJECTS
+    assert found["n_features"] == 2
+    assert found["features"] == ["a", "b"]
+
+
+def test_a_manifest_records_the_versions_the_table_was_built_under():
+    """Two tables computed on different feature sets produce different numbers
+    and the same-looking table; the manifest is what separates them."""
+    from physioml.evaluation.run import manifest
+
+    made = table()
+    found = manifest(
+        evaluate(
+            made,
+            MODELS["logistic"],
+            leave_one_subject_out(made.subject_ids),
+            model_name="logistic",
+        )
+    )
+    assert found["folds"][0]["feature_schema_version"] == "test-1"
+    assert found["folds"][0]["preprocessing_version"] == "test-1"
+
+
+def test_a_manifest_is_serialisable():
+    import json
+
+    from physioml.evaluation.run import manifest
+
+    made = table()
+    found = manifest(
+        evaluate(
+            made,
+            MODELS["majority"],
+            leave_one_subject_out(made.subject_ids),
+            model_name="majority",
+        )
+    )
+    assert json.loads(json.dumps(found, sort_keys=True)) == found
+
+
+def test_a_manifest_names_who_could_not_be_scored():
+    from physioml.evaluation.run import manifest
+
+    made = single_class_subject(table(), "S7")
+    found = manifest(
+        evaluate(
+            made,
+            MODELS["logistic"],
+            leave_one_subject_out(made.subject_ids),
+            model_name="logistic",
+        )
+    )
+    assert found["skipped_subjects"] == ["S7"]
+    assert all("S7" not in f["test"] for f in found["folds"])
