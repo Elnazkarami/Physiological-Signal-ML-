@@ -157,8 +157,12 @@ def enrolment(
     honest arithmetic of the idea rather than a bug in it. A block costs the
     same two minutes however long it is.
 
-    Three strategies, and the differences between them are findings rather
+    Four strategies, and the differences between them are findings rather
     than options.
+
+    ``prospective`` fits on a prefix of the session and scores the remainder,
+    which is the only one of these a deployment could actually perform: nothing
+    the calibrator learned came from after the moment it was fitted.
 
     ``per_condition`` takes the beginning of each condition the session passes
     through. It is the default because it is the only one that reliably works:
@@ -188,6 +192,13 @@ def enrolment(
     if starts.size == 0:
         return np.zeros(0, dtype=int), np.zeros(0, dtype=int)
 
+    if strategy == "prospective":
+        if labels is None:
+            raise ValueError(
+                "prospective enrolment needs the label of each row, to find the "
+                "point by which every condition has been seen at least once"
+            )
+        return _prospective(starts, labels, fraction, window_seconds)
     if strategy == "per_condition":
         if labels is None:
             raise ValueError(
@@ -242,6 +253,53 @@ def covered_minutes(starts: np.ndarray, window_seconds: float = WINDOW_SECONDS) 
             total += finish - begin
             begin, finish = float(when), float(when) + window_seconds
     return (total + finish - begin) / 60.0
+
+
+def _prospective(
+    starts: np.ndarray,
+    labels: np.ndarray,
+    fraction: float,
+    window_seconds: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Everything before a cut, against everything after it.
+
+    The honest version of an enrolment, and the one a deployment could
+    actually perform: the calibrator sees a prefix of the session and is
+    scored on the remainder, so nothing it learned came from after the moment
+    it was fitted.
+
+    The cut is placed at the earliest point by which every condition has been
+    seen, plus enough of the session to reach ``fraction``. That is what makes
+    the comparison with ``per_condition`` meaningful rather than unfair -- both
+    calibrators get examples of both classes; only this one is forbidden to
+    look forward. It is also the number a deployment cares about, and it is
+    usually much larger than the labelled minutes: waiting for a condition that
+    occurs late means waiting through everything before it.
+    """
+    order = np.argsort(starts, kind="stable")
+    ordered_starts = starts[order]
+    ordered_labels = labels[order]
+
+    first, last = float(ordered_starts[0]), float(ordered_starts[-1])
+    duration = last - first
+    if duration <= 0:
+        return np.zeros(0, dtype=int), np.arange(starts.size)
+
+    # The earliest moment at which both classes have appeared.
+    seen: set[str] = set()
+    complete = None
+    for position, label in enumerate(ordered_labels):
+        seen.add(str(label))
+        if len(seen) >= len(set(ordered_labels.tolist())):
+            complete = float(ordered_starts[position])
+            break
+    if complete is None:
+        return np.zeros(0, dtype=int), np.arange(starts.size)
+
+    cut = max(complete, first + duration * fraction)
+    enrol = np.flatnonzero(starts <= cut)
+    evaluation = np.flatnonzero(starts > cut + window_seconds)
+    return enrol, evaluation
 
 
 def _per_condition(

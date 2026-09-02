@@ -16,6 +16,7 @@ import pytest
 from physioml.dataset import FeatureTable
 from physioml.evaluation.personalisation import (
     WINDOW_SECONDS,
+    covered_minutes,
     enrolment,
     personalise,
 )
@@ -192,3 +193,52 @@ def test_a_subject_whose_enrolment_holds_one_class_is_named_not_dropped():
     result = personalise(replace(made, labels=labels), MODELS["logistic"], fraction=0.2)
     assert "S5" in result.skipped
     assert "S5" not in {row.subject for row in result.subjects}
+
+
+# ── the only order a deployment could use ───────────────────────────────────
+
+
+def test_a_prospective_enrolment_never_looks_forward():
+    """Every enrolment window precedes every evaluation window."""
+    made = cohort()
+    for subject in SUBJECTS[:3]:
+        rows = made.subjects == subject
+        starts = made.window_starts[rows]
+        labels = made.labels[rows]
+        enrol, evaluate = enrolment(starts, 0.2, strategy="prospective", labels=labels)
+        assert enrol.size and evaluate.size
+        assert starts[enrol].max() < starts[evaluate].min()
+
+
+def test_a_prospective_enrolment_leaves_a_window_length_gap():
+    made = cohort()
+    rows = made.subjects == SUBJECTS[0]
+    starts, labels = made.window_starts[rows], made.labels[rows]
+    enrol, evaluate = enrolment(starts, 0.2, strategy="prospective", labels=labels)
+    assert starts[evaluate].min() - starts[enrol].max() > WINDOW_SECONDS
+
+
+def test_a_prospective_enrolment_waits_for_both_classes():
+    """Otherwise it has nothing to calibrate, and the comparison with the
+    retrospective version would be unfair rather than informative."""
+    made = cohort()
+    rows = made.subjects == SUBJECTS[0]
+    starts, labels = made.window_starts[rows], made.labels[rows]
+    enrol, _ = enrolment(starts, 0.01, strategy="prospective", labels=labels)
+    assert len(set(labels[enrol])) == 2
+
+
+def test_a_prospective_enrolment_costs_the_time_it_waits_through():
+    """The distinction the retrospective table hides: for a prefix, labelled
+    signal and elapsed session are the same number."""
+    made = cohort()
+    rows = made.subjects == SUBJECTS[0]
+    starts, labels = made.window_starts[rows], made.labels[rows]
+    prefix, _ = enrolment(starts, 0.05, strategy="prospective", labels=labels)
+    blocks, _ = enrolment(starts, 0.05, strategy="per_condition", labels=labels)
+    assert covered_minutes(starts[prefix]) > covered_minutes(starts[blocks]) * 2
+
+
+def test_prospective_enrolment_needs_the_labels():
+    with pytest.raises(ValueError, match="prospective enrolment needs the label"):
+        enrolment(np.arange(100, dtype=float) * 5.0, 0.2, strategy="prospective")

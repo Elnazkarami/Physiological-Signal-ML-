@@ -26,7 +26,7 @@ not, and an interval built from windows would be far too narrow.
 | claim, as first published | what the measurement says |
 | --- | --- |
 | ~~"Adding the chest strap buys 0.029 balanced accuracy."~~ | +0.010, interval **[−0.073, +0.079]**, 8 of 14 improving. On this cohort the two devices are **indistinguishable**. |
-| ~~"Seven minutes of your own data more than halves the calibration error and beats cohort calibration two to one."~~ | Personal calibration is **worse** than cohort on every measure, and damages ranking (AUC 0.952 → 0.891). The earlier figure was an artifact of a metric bug plus a missing baseline. |
+| ~~"Seven minutes of your own data more than halves the calibration error and beats cohort calibration two to one."~~ | Personal calibration is **worse** than cohort on every measure, and damages ranking (AUC 0.952 → 0.891). The earlier figure was an artifact of a metric bug plus a missing baseline. Done **prospectively** — the only order a deployment could use — it reaches ECE 0.321 against 0.090 for doing nothing, costs 33 minutes rather than 7, and cannot be performed at all for 7 of 15 participants. |
 | ~~"The model is very slightly better without temperature."~~ | +0.002, interval **[−0.009, +0.013]**, 9 of 15 improving. No difference. A rounding error read as a finding. |
 | ~~"Adding physiological features made the model fail completely on one person."~~ | That participant's AUC is **1.000**. The model ranks them perfectly and mislabels them; the threshold moved, the knowledge did not. |
 | ~~"Isotonic calibration leaves AUC unchanged."~~ | It is monotone *non-decreasing*; its flat regions create ties. 0.954 → 0.951. |
@@ -45,9 +45,10 @@ not, and an interval built from windows would be far too narrow.
 - **Whether the quality indicators are redundant with the signal features.** Adding them
   changes nothing measurable, which is consistent with redundancy but does not establish
   it — a feature can be redundant with a *combination* of others without duplicating any.
-- **Whether a short enrolment could work prospectively.** The experiment here is
-  retrospective and condition-informed; a prospective claim needs calibration on earlier
-  data and evaluation on later.
+- **Whether a short enrolment could work across sessions.** Within one session,
+  prospectively, it is worse than doing nothing — measured. Calibrating on one night and
+  scoring another has not been run; given the within-session result it is unlikely to
+  rescue the method, but that is an expectation and not a measurement.
 
 ---
 

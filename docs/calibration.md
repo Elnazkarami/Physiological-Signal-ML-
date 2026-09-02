@@ -116,21 +116,53 @@ score is beside it here — a proper scoring rule that the constant predictor lo
 (0.175 against 0.061). Any calibration result reported without a constant baseline and a
 proper score next to it is unfalsifiable.
 
+### Done prospectively, it fails outright
+
+The enrolment above is taken from the beginning of *each condition*, which means the
+calibrator has seen labelled examples from every condition the evaluation later scores.
+The only version a deployment could perform is a prefix: fit on what has happened, score
+what happens next. The cut is placed at the earliest moment both classes have been seen —
+so both calibrators get examples of both classes, and only this one is forbidden to look
+forward.
+
+| enrolment | labelled | participants scorable | ECE none | cohort | prevalence | personal |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| per-condition (retrospective) | 7.1 min | **15 of 15** | 0.088 | 0.073 | 0.014 | 0.076 |
+| **prospective prefix** | **33.1 min** | **8 of 15** | 0.090 | 0.140 | 0.615 | **0.321** |
+
+Three things collapse at once.
+
+**The cost is not seven minutes, it is thirty-three.** Waiting until every condition has
+occurred means waiting through everything before it. The labelled signal and the elapsed
+time are the same number for a prefix, and that number is most of the session.
+
+**Seven participants cannot be enrolled at all.** For them, by the time both classes have
+appeared there is not enough left to score — the condition that completes the enrolment
+happens too near the end.
+
+**And the calibration is far worse than doing nothing.** Personal calibration reaches
+0.321 against an uncalibrated 0.090. Even the constant baseline, which was the best column
+retrospectively at 0.014, becomes the worst at **0.615** — because this protocol runs its
+conditions in blocks, so the stress share of the first part of a session is not the stress
+share of the rest, and a base rate learned from the prefix is simply wrong for the suffix.
+
+That is the finding the retrospective table could not show. **Personal calibration on this
+data is not a modest improvement that needs more enrolment; done in the only order a
+deployment could do it, it is worse than leaving the probabilities alone.**
+
 ### What this does and does not establish
 
-The enrolment is taken from the *beginning of each condition* across the session, which
-means the calibrator has seen labelled examples from every condition the evaluation later
-scores. That is **retrospective, within-session, condition-informed calibration**. It is
-not a claim that somebody can enrol for seven minutes and then receive calibrated
-predictions, and two costs are being conflated if it is read that way:
+The per-condition enrolment is **retrospective, within-session, condition-informed
+calibration**, and the two costs it conflates are now both measured: 7.1 minutes of
+labelled signal, against 33.1 minutes of elapsed session before the same conditions have
+all occurred in order.
 
-- **Labelled signal**: 7.1 minutes, the union of the enrolment windows.
-- **Elapsed time before enrolment is complete**: potentially most of the session, because
-  the last condition block may occur near the end of it.
-
-A prospective claim would need calibration fitted on earlier data and evaluated on later
-data — ideally a different session. Excluding overlapping windows removes shared samples;
-it does not remove the temporal structure that neighbouring windows share.
+What remains untested is a *second session* — calibrating on one night or one recording
+and scoring another. The prospective split above still evaluates within one session, so
+neighbouring windows on either side of the cut share temporal structure that excluding
+overlap does not remove. Given that the within-session prospective result is already worse
+than doing nothing, a cross-session one is unlikely to rescue the method, but it has not
+been run.
 
 ### The enrolment has to contain the thing being calibrated
 
