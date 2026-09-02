@@ -109,20 +109,34 @@ def main() -> None:
             shown = "  ".join(f"{k} {v:.3f}" for k, v in found.items())
             print(f"{name:28} {shown}")
 
-    print("\nper-subject balanced accuracy")
+    print("\nper-subject balanced accuracy, and the ranking underneath it")
+    print(
+        "  bal.acc is the label at the operating point; AUC is whether the windows\n"
+        "  were ordered correctly at all. 0.500 beside a high AUC is a threshold\n"
+        "  that sits off the end of that person's probabilities, not a model that\n"
+        "  learned nothing about them."
+    )
     per_model = {}
     for name, result in results.items():
         scores: dict[str, float] = {}
         for fold in result.folds:
             scores.update(fold.per_subject)
         per_model[name] = scores
-    print("subj  " + "  ".join(f"{n[:9]:>9}" for n in per_model))
+    per_auc = {
+        name: {s: v for fold in result.folds for s, v in fold.per_subject_auc.items()}
+        for name, result in results.items()
+    }
+    print("subj  " + "  ".join(f"{n[:14]:>15}" for n in per_model))
+    print("      " + "  ".join(f"{'bal.acc  AUC':>15}" for _ in per_model))
     for subject in table.subject_ids:
         if any(subject not in scores for scores in per_model.values()):
             continue  # not scored for at least one model; see "not scored" above
-        print(
-            f"{subject:5} " + "  ".join(f"{per_model[n][subject]:9.3f}" for n in per_model)
-        )
+        cells = []
+        for name in per_model:
+            auc = per_auc[name].get(subject)
+            shown = f"{auc:.3f}" if auc is not None else "  -  "
+            cells.append(f"{per_model[name][subject]:7.3f}{shown:>8}")
+        print(f"{subject:5} " + "  ".join(cells))
 
 
 if __name__ == "__main__":

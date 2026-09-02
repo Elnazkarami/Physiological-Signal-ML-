@@ -247,12 +247,30 @@ The last column is why that matters. Random forest scores 0.976 AUC across the c
 **0.500 — chance-level balanced accuracy — on subject S14**; gradient boosting gets 0.504
 on the same person. Logistic regression's lowest observed participant score is 0.766.
 
-That is a statement about a decision threshold, not about what the model knows. A balanced
-accuracy of 0.500 means the labels it emits for that participant are no better than chance
-*at the operating point it was scored at*; the model may still rank their stressed windows
-above their calm ones while placing all of them on one side of the boundary. Separating
-those two requires that participant's own AUC and predicted-probability distribution,
-which the per-subject table does not currently carry. A cohort mean hides a model that has learned
+**And that column, read alone, says the wrong thing.** Balanced accuracy is the label the
+model emits at the threshold it was scored at. Area under the curve is whether it ordered
+that person's windows correctly at all. They come apart:
+
+| random forest, S14 | |
+| --- | ---: |
+| balanced accuracy | 0.500 |
+| **AUC** | **1.000** |
+| mean stated probability | 0.045 |
+| actual stress share | 0.223 |
+
+The model ranks **every one of S14's stressed windows above every calm one** — a perfect
+ordering — and then labels all of them "not stressed", because the probabilities it states
+for that participant sit five times below their true rate and the whole distribution falls
+on one side of the boundary. Nothing was failed to be learned. A threshold was in the
+wrong place for one person.
+
+That pattern holds everywhere it was checked. Across all fifteen subjects the worst
+*ranking* is 0.912 AUC for random forest, and in the fused table the worst is 0.874 while
+one participant still scores 0.500 balanced accuracy at 0.972 AUC. **Every chance-level
+per-subject result in this project is a threshold artifact on a well-ranked participant**,
+which is a different problem with a different remedy — a per-person operating point, not a
+better model. The per-subject tables now report both columns, because reporting only the
+first called these cases failures. A cohort mean hides a model that has learned
 nothing at all about someone, which is exactly the failure a deployed physiological
 classifier makes in front of a real user. Per-subject scores are reported for every fold
 for that reason, and the worst one is carried into the summary rather than averaged away.
@@ -320,9 +338,9 @@ no usable variability. Temperature contributes −0.002: the model is very sligh
 *better* without it, which is reported rather than rounded away.
 
 One detail worth the space: for random forest, accelerometry alone has a worst subject of
-0.753, while the full feature set drops to 0.500 on S14 — chance at the evaluated
-threshold. Adding the physiological features to movement cost that model its usable
-operating point for one person.
+0.753, while the full feature set drops to 0.500 on S14 — where its AUC is 1.000. Adding
+the physiological features to movement cost that model its usable operating point for one
+person while leaving its ranking of them perfect.
 
 ### Signal quality alone gets to 0.663
 
@@ -459,7 +477,9 @@ identical rows and identical folds:
 
 **The second device buys almost nothing on average and makes the model far less reliable
 for the person it serves worst.** Balanced accuracy goes up 0.013, the fold-to-fold spread
-doubles, and the worst subject falls from 0.707 to chance. For a cohort statistic that is
+doubles, and the worst subject falls from 0.707 to chance — at the threshold. That
+participant's AUC is 0.972, so the fall is again an operating point rather than a loss of
+signal; the worst *ranking* in the fused table is 0.874. For a cohort statistic that is
 a small improvement. For something a person wears it is close to the opposite, and the
 mean alone would have reported it as a win.
 

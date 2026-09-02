@@ -62,6 +62,25 @@ class Scores:
     per_subject: dict[str, float] = field(default_factory=dict)
     """Balanced accuracy for each held-out subject."""
 
+    per_subject_auc: dict[str, float] = field(default_factory=dict)
+    """Area under the ROC curve for each held-out subject.
+
+    Beside the balanced accuracy because the two answer different questions and
+    the difference is a diagnosis. Balanced accuracy asks whether the labels a
+    model emits are right at the threshold it was scored at; AUC asks whether
+    it ranks that person's stressed windows above their calm ones at all. A
+    participant scoring 0.500 balanced accuracy and 0.900 AUC has not been
+    failed by the model, they have been failed by the operating point -- their
+    windows are ordered correctly and all of them sit on one side of the
+    boundary. Reporting only the first calls both cases "chance"."""
+
+    per_subject_stated: dict[str, float] = field(default_factory=dict)
+    """Mean stated probability per subject, against which ``per_subject_rate``
+    is the truth. Two numbers that make an over- or under-confident participant
+    visible without a reliability plot."""
+
+    per_subject_rate: dict[str, float] = field(default_factory=dict)
+
     confusion: tuple[tuple[int, ...], ...] = ()
 
     @property
@@ -112,6 +131,9 @@ def score(
         expected = expected_calibration_error(truth, probability)
 
     per_subject: dict[str, float] = {}
+    per_subject_auc: dict[str, float] = {}
+    per_subject_stated: dict[str, float] = {}
+    per_subject_rate: dict[str, float] = {}
     if subjects is not None:
         for subject in np.unique(subjects):
             rows = subjects == subject
@@ -119,9 +141,12 @@ def score(
                 # A held-out participant with one class present has no balanced
                 # accuracy worth the name; reporting 0 or 1 would be noise.
                 continue
-            per_subject[str(subject)] = float(
-                balanced_accuracy_score(truth[rows], predicted[rows])
-            )
+            name = str(subject)
+            per_subject[name] = float(balanced_accuracy_score(truth[rows], predicted[rows]))
+            per_subject_rate[name] = float(np.mean(truth[rows] == 1))
+            if probability is not None and binary:
+                per_subject_auc[name] = float(roc_auc_score(truth[rows], probability[rows]))
+                per_subject_stated[name] = float(np.mean(probability[rows]))
 
     present = np.unique(np.concatenate([truth, predicted]))
     recalls = recall_score(truth, predicted, labels=present, average=None, zero_division=0)
@@ -146,6 +171,9 @@ def score(
         per_class={str(c): float(r) for c, r in zip(present, recalls, strict=True)},
         labels=tuple(str(c) for c in present),
         per_subject=per_subject,
+        per_subject_auc=per_subject_auc,
+        per_subject_stated=per_subject_stated,
+        per_subject_rate=per_subject_rate,
         confusion=tuple(
             tuple(int(v) for v in row)
             for row in confusion_matrix(truth, predicted, labels=present)
@@ -233,4 +261,8 @@ def aggregate(folds: list[Scores]) -> dict[str, float]:
     if per_subject:
         worst = min(per_subject, key=lambda s: per_subject[s])
         summary["worst_subject_balanced_accuracy"] = per_subject[worst]
+    per_auc = {s: v for f in folds for s, v in f.per_subject_auc.items()}
+    if per_auc:
+        summary["worst_subject_auc"] = min(per_auc.values())
+        summary["per_subject_auc_mean"] = float(np.mean(list(per_auc.values())))
     return summary

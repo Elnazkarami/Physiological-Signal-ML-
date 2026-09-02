@@ -588,3 +588,55 @@ def test_an_ablation_reports_agreement_when_there_is_no_area_under_a_curve():
     )
     assert "kappa" in result.table()
     assert "AUC" not in result.table()
+
+
+# ── ranking and threshold are different failures ────────────────────────────
+
+
+def test_a_perfectly_ranked_subject_can_score_chance_at_the_threshold():
+    """The case that made a real result read backwards.
+
+    A model whose probabilities for one participant are all below the decision
+    boundary labels every window negative, scoring 0.500 balanced accuracy --
+    while ordering that participant's windows perfectly. Measured on WESAD:
+    S14 under random forest scores 0.500 balanced accuracy at an AUC of 1.000.
+    """
+    truth = np.array([0] * 8 + [1] * 2)
+    probability = np.array([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.30, 0.40])
+    predicted = np.zeros(10, dtype=int)  # every window called negative
+    subjects = np.full(10, "S14")
+
+    got = score(truth, predicted, probability, subjects)
+    assert got.per_subject["S14"] == pytest.approx(0.5), "chance at the threshold"
+    assert got.per_subject_auc["S14"] == pytest.approx(1.0), "and a perfect ranking"
+
+
+def test_the_stated_and_actual_rates_are_reported_beside_each_other():
+    """What makes the diagnosis readable: S14 stated 0.045 against 0.223."""
+    truth = np.array([0] * 8 + [1] * 2)
+    probability = np.full(10, 0.045)
+    got = score(truth, np.zeros(10, dtype=int), probability, np.full(10, "S14"))
+    assert got.per_subject_stated["S14"] == pytest.approx(0.045)
+    assert got.per_subject_rate["S14"] == pytest.approx(0.2)
+
+
+def test_a_genuinely_uninformative_model_has_a_low_subject_auc():
+    """The other half: this is what failing to learn actually looks like."""
+    rng = np.random.default_rng(0)
+    truth = rng.integers(0, 2, 200)
+    probability = rng.random(200)
+    got = score(truth, (probability > 0.5).astype(int), probability, np.full(200, "S1"))
+    assert got.per_subject_auc["S1"] == pytest.approx(0.5, abs=0.12)
+
+
+def test_the_summary_carries_the_worst_ranking_not_only_the_worst_label():
+    made = table()
+    result = evaluate(
+        made,
+        MODELS["logistic"],
+        leave_one_subject_out(made.subject_ids),
+        model_name="logistic",
+    )
+    assert "worst_subject_auc" in result.summary
+    assert "per_subject_auc_mean" in result.summary
+    assert result.summary["worst_subject_auc"] <= result.summary["per_subject_auc_mean"]
