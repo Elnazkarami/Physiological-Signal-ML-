@@ -243,6 +243,19 @@ The ensembles have the better AUC — gradient boosting separates the classes be
 anything here — but logistic regression has the higher balanced accuracy and half the
 fold-to-fold spread (±0.056 against ±0.113).
 
+How much of that ordering is real, paired across the fifteen participants:
+
+| against logistic regression | mean | 95% interval | improved |
+| --- | ---: | ---: | ---: |
+| random forest | −0.043 | [−0.101, +0.007] | 5 of 15 |
+| gradient boosting | −0.049 | [−0.100, −0.011] | 4 of 15 |
+| linear SVM | −0.054 | [−0.108, −0.010] | 4 of 15 |
+
+Logistic regression is ahead of gradient boosting and the SVM by an interval that excludes
+zero. **Against random forest it is not** — that interval crosses zero, so the two are not
+separated by this cohort, and the table's ordering of them is not something fifteen
+participants can support.
+
 The last column is why that matters. Random forest scores 0.976 AUC across the cohort and
 **0.500 — chance-level balanced accuracy — on subject S14**; gradient boosting gets 0.504
 on the same person. Logistic regression's lowest observed participant score is 0.766.
@@ -306,8 +319,11 @@ Logistic regression, same folds throughout:
 | without temperature | 23 | 0.900 ±0.051 | 0.956 | 0.769 |
 
 **The accelerometer alone gets 0.855 — within 0.043 of all 28 features together.** It is
-the largest contributor on removal (−0.054) and the pattern repeats with random forest,
-where accelerometry alone reaches 0.854 against 0.854 for everything.
+the largest contributor on removal, and it is the one ablation here that survives being
+measured properly: paired across the fifteen participants, removing accelerometry costs
+**0.054 with a 95% interval of [−0.093, −0.016]**, improving only 4 of 15 people. The
+interval excludes zero. The pattern repeats with random forest, where accelerometry alone
+reaches 0.854 against 0.854 for everything.
 
 That is a finding about the dataset, not a better model. WESAD induces stress with the
 Trier Social Stress Test: the participant stands, speaks in front of a panel and does
@@ -332,10 +348,13 @@ does not identify a mechanism, and it cannot: that would need validation under d
 movement and task conditions — stressed participants sitting still, calm participants
 moving — which WESAD does not contain.
 
-Two smaller results in the same table. Pulse contributes +0.016 — little beyond what the
-other sensors already supply, consistent with a wrist optical sensor that gives rate and
-no usable variability. Temperature contributes −0.002: the model is very slightly
-*better* without it, which is reported rather than rounded away.
+Two smaller results in the same table, and neither survives the same treatment. Pulse
+contributes +0.016 and temperature −0.002; the temperature difference has a paired
+interval of [−0.009, +0.013] across fifteen participants, with 9 of them improving when it
+is removed. **That is not "very slightly better without it", it is no difference at all**,
+and the earlier wording read a rounding error as a finding. What can be said is that
+neither sensor adds much beyond what the others already supply — consistent, for the
+pulse, with a wrist optical sensor that gives rate and no usable variability.
 
 One detail worth the space: for random forest, accelerometry alone has a worst subject of
 0.753, while the full feature set drops to 0.500 on S14 — where its AUC is 1.000. Adding
@@ -557,10 +576,23 @@ the devices can be compared without also measuring who each of them dropped:
 | chest only | 0.881 ±0.140 | 0.974 | 0.500 | 0.869 |
 | wrist + chest | **0.892 ±0.128** | **0.979** | 0.500 | 0.872 |
 
-**On the common subset the strap buys 0.010 balanced accuracy, doubles the spread, and
-takes the worst participant from 0.701 to a threshold failure.** Off the common subset it
-also costs one participant in fifteen entirely. Those are the two numbers a decision about
-hardware needs, and neither of them is the cohort mean.
+**On the common subset the strap buys nothing that can be distinguished from noise.**
+Paired participant by participant, with a percentile bootstrap resampling the fourteen
+people:
+
+| against wrist only | mean | 95% interval | improved |
+| --- | ---: | ---: | ---: |
+| wrist + chest | +0.010 | [−0.073, +0.079] | 8 of 14 |
+| chest only | −0.001 | [−0.090, +0.081] | 8 of 14 |
+
+Both intervals include zero, and both split the cohort almost evenly. The honest statement
+is that **on these fifteen participants the two devices are indistinguishable, and adding
+the second to the first is indistinguishable from either** — while doubling the spread,
+taking the worst participant to a threshold failure, and costing one person in fifteen
+entirely. The 0.010 is a description of this sample, not evidence of an improvement.
+
+That is a stronger reason not to add the strap than the one I first reported, and it is a
+reason that a cohort mean by itself could never have produced.
 
 ## Personal calibration on short labelled blocks — a negative result
 
@@ -800,7 +832,12 @@ python scripts/ablate.py wesad_fused.npz --by device
 python scripts/personalise.py wesad_features.npz
 
 python scripts/build_features.py ~/Downloads/WESAD.zip wesad_qc.npz --quality
+python scripts/compare.py wesad_features.npz
 ```
+
+`compare.py` is the one to reach for before believing any difference in these tables. It
+pairs two configurations participant by participant and bootstraps over **participants**,
+which is the sample size — 8,057 rows look like a large sample and are fifteen people.
 
 For the sleep recordings — the `sleep-cassette` files from
 [Sleep-EDF Expanded](https://physionet.org/content/sleep-edfx/1.0.0/):
