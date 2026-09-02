@@ -188,6 +188,33 @@ redundant with a *combination* of others without duplicating any of them.
 Note also that the 28 features are not "physiology": eight are accelerometry. The honest
 label is signal-derived.
 
+### Where the shortcut comes from
+
+Quality control is not evenly distributed across the protocol. The share of windows it
+flags, by condition:
+
+| condition | windows | ACC | BVP | EDA | TEMP |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| amusement | 928 | 0.000 | 0.000 | 0.000 | 0.000 |
+| baseline | 3,341 | 0.000 | 0.010 | 0.000 | 0.000 |
+| meditation | 2,001 | 0.000 | 0.000 | 0.000 | 0.000 |
+| **stress** | 1,787 | 0.000 | **0.335** | 0.013 | 0.000 |
+
+**A third of stress windows are flagged for motion on the pulse signal, against one in a
+hundred at baseline and none at all in the other two conditions.** That is the whole
+0.663: the motion flag is very nearly a stress detector by itself, because a participant
+standing and speaking moves and a seated one does not.
+
+Nothing is rejected — the rejected fraction is 0.000 in every cell, because motion marks a
+window questionable rather than unusable. So the flags remove nothing and still carry the
+label. That is the right design for quality control and it is exactly why these indicators
+have to be kept out of the feature set unless they are asked for: a column that predicts
+the condition without describing the participant is a shortcut, and this one is a very
+good shortcut.
+
+It also explains why adding them to the signal features changes nothing. The accelerometer
+already measures what makes the flag fire.
+
 Build the table with `--quality` to reproduce this. It is off by default, because a
 feature that predicts the label without describing the person is a shortcut and not a
 finding, and it should have to be asked for.

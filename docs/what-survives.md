@@ -14,7 +14,7 @@ not, and an interval built from windows would be far too narrow.
 | claim | evidence |
 | --- | --- |
 | **Movement carries much of the stress signal on WESAD.** | Removing accelerometry costs **0.054** balanced accuracy, 95% interval **[−0.093, −0.016]**, improving only 4 of 15 participants. The accelerometer alone reaches 0.855 against 0.898 for all 28 features. |
-| **Signal quality alone partly identifies the condition.** | Twelve columns describing only how the recording went reach **0.663** balanced accuracy against a 0.500 baseline. |
+| **Signal quality alone partly identifies the condition.** | Twelve columns describing only how the recording went reach **0.663** balanced accuracy against a 0.500 baseline. The mechanism is measured: **33.5% of stress windows are flagged for motion on the pulse against 1.0% of baseline** and none in the other conditions. |
 | **Logistic regression beats gradient boosting and the linear SVM.** | Paired intervals **[−0.100, −0.011]** and **[−0.108, −0.010]**, both excluding zero. |
 | **Every chance-level per-subject score here is a threshold artifact, not a failure to learn.** | S14 scores 0.500 balanced accuracy at **1.000 AUC**. The worst *ranking* across fifteen participants is 0.912. |
 | **Cohort calibration narrows the spread of stated confidence.** | Per-participant ECE spread falls from sd 0.061 to **0.028**, worst 0.213 to 0.129. |
