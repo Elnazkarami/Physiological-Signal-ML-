@@ -30,7 +30,8 @@ import numpy as np
 
 from physioml.core.feature import Feature
 from physioml.dataset import FeatureTable
-from physioml.io.sleep_edf import EPOCH_SECONDS, SleepEDF
+from physioml.io.edf import EDFError
+from physioml.io.sleep_edf import EPOCH_SECONDS, SleepEDF, SleepEDFError
 from physioml.neural.features import (
     CHANNEL_PREFIX,
     FEATURE_SET,
@@ -76,10 +77,21 @@ def build_sleep(
     trimmed = 0
     unscored = 0
 
+    unreadable: list[str] = []
     for subject_id, night in available:
         if night not in nights or (wanted is not None and subject_id not in wanted):
             continue
-        record = source.read(subject_id, night, margin_minutes=margin_minutes)
+        try:
+            record = source.read(subject_id, night, margin_minutes=margin_minutes)
+        except (EDFError, SleepEDFError) as exc:
+            # One unreadable night should not cost the other seventy-seven. A
+            # truncated download, a file with no scoring, a recording missing
+            # the channels asked for: all are reasons to skip that night and
+            # say so, not to lose an hour of work at the end of it.
+            unreadable.append(f"{subject_id}n{night}: {exc}")
+            if progress:
+                print(f"  {subject_id} night {night}: skipped — {exc}", flush=True)
+            continue
         trimmed += record.trimmed_epochs
         unscored += record.unscored_epochs
 
@@ -151,6 +163,8 @@ def build_sleep(
 
     codes["trimmed_epochs"] = trimmed
     codes["unscored_epochs"] = unscored
+    if unreadable:
+        codes["unreadable_nights"] = len(unreadable)
     return FeatureTable(
         feature_names=tuple(names),
         values=np.array([[rows[i][n].value for n in names] for i in complete], dtype=float),

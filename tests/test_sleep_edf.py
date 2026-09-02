@@ -196,3 +196,37 @@ def test_a_recording_missing_every_requested_channel_is_refused(tmp_path):
     night(tmp_path, "00", 1, [("Sleep stage W", 60.0), ("Sleep stage 2", 600.0)])
     with pytest.raises(SleepEDFError, match="has none of"):
         SleepEDF(tmp_path).read("00", 1, channels=("EEG C3-A2",))
+
+
+# ── a build survives one unreadable night ───────────────────────────────────
+
+
+def test_a_truncated_recording_is_skipped_and_counted(tmp_path):
+    """One bad night should not cost the other seventy-seven.
+
+    A build over the full cohort takes minutes and reads gigabytes; losing all
+    of it at the end because one file was half-downloaded is a bad trade for a
+    guarantee nothing needed.
+    """
+    from physioml.neural.dataset import build_sleep
+
+    night(tmp_path, "00", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    night(tmp_path, "01", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    whole = (tmp_path / "SC4011E0-PSG.edf").read_bytes()
+    (tmp_path / "SC4011E0-PSG.edf").write_bytes(whole[: len(whole) // 2])
+
+    table = build_sleep(tmp_path, margin_minutes=5.0)
+    assert set(table.subjects.tolist()) == {"00"}
+    assert table.qc_codes["unreadable_nights"] == 1
+
+
+def test_a_build_where_nothing_is_readable_still_raises(tmp_path):
+    """Skipping is for a night, not for the whole cohort."""
+    from physioml.neural.dataset import build_sleep
+
+    night(tmp_path, "00", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    whole = (tmp_path / "SC4001E0-PSG.edf").read_bytes()
+    (tmp_path / "SC4001E0-PSG.edf").write_bytes(whole[: len(whole) // 2])
+
+    with pytest.raises(ValueError, match="no scored epoch"):
+        build_sleep(tmp_path, margin_minutes=5.0)
