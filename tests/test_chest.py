@@ -9,8 +9,6 @@ construction and only real data exposed it; they are marked where they are.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -30,6 +28,8 @@ from physioml.peripheral.chest import (
     resp_features,
     rr_intervals_ms,
 )
+from tests.paths import WESAD_ARCHIVE as ARCHIVE
+from tests.paths import WESAD_MISSING
 
 RATE = 700.0
 
@@ -250,10 +250,8 @@ def test_chest_accelerometry_is_not_divided_by_the_wrist_scale():
 
 # ── the fused table ─────────────────────────────────────────────────────────
 
-ARCHIVE = Path.home() / "Downloads" / "WESAD.zip"
-needs_wesad = pytest.mark.skipif(
-    not ARCHIVE.is_file(), reason="the WESAD archive is not present"
-)
+
+needs_wesad = pytest.mark.skipif(not ARCHIVE.is_file(), reason=WESAD_MISSING)
 
 
 @pytest.fixture(scope="module")

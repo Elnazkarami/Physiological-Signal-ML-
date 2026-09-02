@@ -9,7 +9,6 @@ electrode losing contact — and QC is asserted to find each one.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -37,6 +36,8 @@ from physioml.peripheral.qc import (
     check_temp,
 )
 from physioml.peripheral.windowing import Epoch
+from tests.paths import WESAD_ARCHIVE as ARCHIVE
+from tests.paths import WESAD_MISSING
 
 POLICY = QCPolicy()
 T0 = datetime(2017, 1, 1, tzinfo=UTC)
@@ -222,10 +223,7 @@ def test_rejection_labels_the_window_without_discarding_it():
 # ── against the real dataset ────────────────────────────────────────────────
 
 
-ARCHIVE = Path.home() / "Downloads" / "WESAD.zip"
-
-
-@pytest.mark.skipif(not ARCHIVE.is_file(), reason="the WESAD archive is not present")
+@pytest.mark.skipif(not ARCHIVE.is_file(), reason=WESAD_MISSING)
 def test_lab_collected_signal_is_not_rejected():
     """WESAD is clean, and QC saying so is the correct outcome.
 

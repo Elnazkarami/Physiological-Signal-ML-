@@ -10,7 +10,6 @@ from __future__ import annotations
 import pickle
 import zipfile
 from datetime import UTC, datetime
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -23,11 +22,10 @@ from physioml.io.wesad import (
     condition_of,
 )
 from physioml.peripheral.windowing import epochs, label_counts
+from tests.paths import WESAD_ARCHIVE as ARCHIVE
+from tests.paths import WESAD_MISSING
 
-ARCHIVE = Path.home() / "Downloads" / "WESAD.zip"
-needs_wesad = pytest.mark.skipif(
-    not ARCHIVE.is_file(), reason="the WESAD archive is not present"
-)
+needs_wesad = pytest.mark.skipif(not ARCHIVE.is_file(), reason=WESAD_MISSING)
 
 
 # ── labelling ───────────────────────────────────────────────────────────────

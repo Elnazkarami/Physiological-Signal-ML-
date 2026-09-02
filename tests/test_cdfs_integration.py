@@ -13,7 +13,6 @@ from __future__ import annotations
 import threading
 from dataclasses import replace
 from datetime import UTC, datetime
-from pathlib import Path
 from wsgiref.simple_server import WSGIServer, make_server
 
 import pytest
@@ -29,13 +28,13 @@ from physioml.core import (
     SignalWindow,
     TrainingRun,
 )
+from tests.paths import CDFS_MISSING, CDFS_REPO
 
 cdfs = pytest.importorskip("cdfs", reason="CDFS is not installed")
 
-CDFS_REPO = Path.home() / "Downloads" / "clinical-data-fabric-system"
 pytestmark = pytest.mark.skipif(
     not (CDFS_REPO / "studies" / "cardio_fx_01" / "study.toml").is_file(),
-    reason="the CDFS study bundle is not available",
+    reason=CDFS_MISSING,
 )
 
 STUDY_ID = "CARDIO-FX-01"

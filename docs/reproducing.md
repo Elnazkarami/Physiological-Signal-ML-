@@ -1,5 +1,28 @@
 # Installing and reproducing every number
 
+## Where the datasets go
+
+Neither dataset can be redistributed, so the tests and scripts ask where yours are:
+
+| variable | default | what |
+| --- | --- | --- |
+| `PHYSIOML_WESAD` | `~/Downloads/WESAD.zip` | the WESAD archive, read in place |
+| `PHYSIOML_SLEEP_EDF` | `/tmp/pm/sleep-edf` | a directory of Sleep-EDF `SC4*.edf` files |
+| `PHYSIOML_CDFS` | `~/Downloads/clinical-data-fabric-system` | a CDFS checkout, for the integration tests |
+
+Tests that need a dataset skip with a message naming the variable to set. Nothing fails
+because a file is missing, and nothing passes silently because it was never run.
+
+## Checking the EDF reader against another implementation
+
+The reader is tested against files this repository writes, which is necessary and not
+sufficient: a reader and a writer built by one person agree with each other about a format
+neither may have got right. `pip install -e ".[dev]"` brings in `pyedflib`, a wrapper
+around the reference C library, and the cross-check runs on the real recordings — sample
+counts, mixed sampling rates in one file, physical scaling, and every annotation onset,
+duration and label. Values agree to about 1e-13.
+
+
 Every table in this repository comes from a command in this file.
 ## Install
 

@@ -279,13 +279,12 @@ def test_a_recording_carries_a_checksum_of_its_own_samples():
     """Identity was built from metadata alone -- subject, device, rate,
     duration -- every one of which can stay the same while the samples change.
     A corrected export and the export it corrects were the same recording."""
-    from pathlib import Path
-
     from physioml.io.wesad import WESAD
+    from tests.paths import WESAD_ARCHIVE as archive
+    from tests.paths import WESAD_MISSING
 
-    archive = Path.home() / "Downloads" / "WESAD.zip"
     if not archive.is_file():
-        pytest.skip("the WESAD archive is not present")
+        pytest.skip(WESAD_MISSING)
 
     for name, recording in WESAD(archive).read("S2").recordings.items():
         assert recording.source_hash, f"{name} has no checksum"
