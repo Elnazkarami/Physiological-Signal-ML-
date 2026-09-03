@@ -19,7 +19,7 @@ not, and an interval built from windows would be far too narrow.
 | **Every chance-level per-subject score here is a threshold artifact, not a failure to learn.** | S14 scores 0.500 balanced accuracy at **1.000 AUC**. The worst *ranking* across fifteen participants is 0.912. |
 | **Cohort calibration narrows the spread of stated confidence.** | Per-participant ECE spread falls from sd 0.061 to **0.028**, worst 0.213 to 0.129. |
 | **Wrist pulse variability, as implemented here, is not defensible.** | 236 ms of SDNN against a 65 ms reference estimate. The features are not emitted. |
-| **Sleep staging from a scalp montage works.** | κ **0.710** at 79% accuracy, inside the published range for feature-based automatic staging under subject-wise validation. |
+| **Sleep staging from a scalp montage works.** | κ **0.656** at 77% accuracy over 76 participants, at the lower end of the published range for feature-based automatic staging under subject-wise validation. |
 
 ## Withdrawn
 
@@ -31,6 +31,8 @@ not, and an interval built from windows would be far too narrow.
 | ~~"Adding physiological features made the model fail completely on one person."~~ | That participant's AUC is **1.000**. The model ranks them perfectly and mislabels them; the threshold moved, the knowledge did not. |
 | ~~"Isotonic calibration leaves AUC unchanged."~~ | It is monotone *non-decreasing*; its flat regions create ties. 0.954 → 0.951. |
 | ~~"A majority baseline has an ECE of 0.000."~~ | 0.222 — equal to its Brier score, as it must be. The bin edges were dropping predictions of exactly zero. |
+| ~~"Sleep staging reaches κ 0.710."~~ | **0.656** on all 76 subjects rather than the first 20. Every column fell and the spread widened; the worst participant went from 0.534 to 0.310. The small cohort was unrepresentative, not merely small — wake is 17% of it and 34% of the whole. |
+| ~~"N1 is confused with REM, which it shares theta with."~~ | On 76 subjects N1 goes to **N2 29%**, wake 22%, REM 17%. The REM explanation was built on twenty subjects, where it was the largest cell. |
 
 ## Verified rather than asserted
 

@@ -36,24 +36,24 @@ lost stays countable.
 
 ### Sleep-EDF Expanded — a scalp montage, asleep
 
-20 subjects of the Sleep Cassette cohort, one night each, in European Data Format. Read
+76 subjects of the Sleep Cassette cohort, one night each, in European Data Format. Read
 without a toolbox: EDF is a header of fixed-width ASCII fields followed by interleaved
 16-bit records, and each file is memory-mapped so that asking for one channel touches only
 its own columns rather than loading a night of polysomnography to reach it.
 
 | | epochs | share |
 | --- | ---: | ---: |
-| N2 | 9,200 | 44.6% |
-| REM | 3,756 | 18.2% |
-| wake | 3,449 | 16.7% |
-| N3 | 2,981 | 14.5% |
-| N1 | 1,240 | 6.0% |
-| **scored and kept** | **20,626** | **34.0%** |
-| trimmed | 36,950 | recorder running before bed and after waking |
-| unscored | 3,013 | movement time and epochs nobody scored |
+| N2 | 34,534 | 35.9% |
+| wake | 32,442 | 33.7% |
+| REM | 12,185 | 12.7% |
+| N1 | 10,518 | 10.9% |
+| N3 | 6,458 | 6.7% |
+| **scored and kept** | **96,137** | **42.0%** |
+| trimmed | 120,669 | recorder running before bed and after waking |
+| unscored | 12,196 | movement time and epochs nobody scored |
 
-The denominator is 60,589 epochs across the twenty nights: 20,626 kept, 36,950 trimmed,
-3,013 unscored. Of the 57,576 that carry a score, 35.8% are kept.
+The denominator is 229,002 epochs across the seventy-six nights: 96,137 kept, 120,669
+trimmed, 12,196 unscored. Of the 216,806 that carry a score, 44.3% are kept.
 
 30-second epochs, because that is what the scorer used. Consecutive rows share no signal,
 which is the one thing that is *easier* here than on WESAD.

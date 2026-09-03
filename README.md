@@ -19,7 +19,7 @@ transformations, features, model version, and source observations that produced 
 Two datasets, two tasks, one pipeline:
 
 - **WESAD** — wrist and chest sensors, stress against baseline, 15 participants.
-- **Sleep-EDF Expanded** — a scalp montage, five-stage sleep scoring, 20 participants.
+- **Sleep-EDF Expanded** — a scalp montage, five-stage sleep scoring, 76 participants.
 
 ## What is in it
 
@@ -56,12 +56,15 @@ a format neither may have got right.
 
 | model | bal. accuracy | Cohen's κ | accuracy | worst subject |
 | --- | ---: | ---: | ---: | ---: |
-| majority class | 0.200 ±0.000 | 0.000 | 0.440 | 0.200 |
-| logistic regression | **0.737 ±0.104** | 0.662 ±0.148 | 0.748 | 0.420 |
-| random forest | 0.725 ±0.070 | **0.710 ±0.090** | 0.793 | 0.534 |
+| majority class | 0.206 ±0.016 | 0.000 | 0.377 | 0.200 |
+| logistic regression | **0.695 ±0.111** | 0.607 ±0.135 | 0.721 | 0.227 |
+| random forest | 0.674 ±0.102 | **0.656 ±0.124** | 0.765 | 0.310 |
 
-κ 0.710 sits inside the published range for feature-based staging under subject-wise
-validation, which is the check that matters: the pipeline is new, the task is not.
+κ 0.656 sits at the lower end of the published range for feature-based staging under
+subject-wise validation — the check that matters, since the pipeline is new and the task
+is not. **On the first 20 subjects it read 0.710**; the full cohort took it down, and took
+the worst participant from 0.534 to 0.310. Twenty was not a small sample of this dataset,
+it was an unrepresentative one: wake is 17% of those subjects and 34% of all of them.
 
 ## The finding the scores are for
 

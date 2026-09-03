@@ -51,6 +51,23 @@ The last of these caught itself: adding the independent EDF reader to the `dev` 
 pulled NumPy in behind it, and the job that proves the provenance core needs no scientific
 stack failed on the next push. It is in its own extra now.
 
+## Conclusions that did not survive more data
+
+Not defects — the code was right each time. But four claims here were drawn from a cohort
+too small to support them, and the pattern is worth its own row:
+
+| claim | on 20 sleep subjects | on 76 |
+| --- | --- | --- |
+| staging agreement | κ 0.710 | **κ 0.656**, worst participant 0.534 → 0.310 |
+| what N1 is confused with | REM (31%) | **N2 (29%)**, REM down to 17% |
+| N3 recall | 0.885 | **0.641** averaged per participant |
+| class balance | wake 17%, N3 14% | **wake 34%, N3 7%** |
+
+The last row explains the others. Twenty subjects were not a small sample of this dataset;
+they were an unrepresentative one, and every conclusion drawn on them inherited that. The
+same lesson arrived from the other direction on WESAD, where fifteen participants produced
+paired intervals wide enough to withdraw two published claims.
+
 ## Rules that came out of these
 
 - A metric that cannot be checked by hand on a trivial input is not trusted. The majority
@@ -60,6 +77,8 @@ stack failed on the next push. It is in its own extra now.
 - A number that cannot move is a bug, not a measurement. Two constant columns were shipped
   before this became a rule.
 - A difference without an interval is a description of a sample.
+- A small cohort is not just an imprecise version of a large one. It can be a different
+  distribution, and then the estimate is not merely wide, it is aimed somewhere else.
 
 ---
 

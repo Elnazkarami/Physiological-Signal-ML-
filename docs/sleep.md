@@ -25,19 +25,25 @@ of a subject are one subject** — treating them as two people would put the sam
 both sides of every split, the leak the whole evaluation exists to prevent, arriving
 through the file naming.
 
-20,626 epochs, 48 features, five stages — N2 45%, REM 18%, W 17%, N3 14%, N1 6%.
+96,137 epochs, 48 features, five stages — N2 36%, W 34%, REM 13%, N1 11%, N3 7%.
 
-**The protocol, stated so the number can be compared with anything.** Subjects SC400 to
-SC419 of the Sleep Cassette cohort, night 1 of each — the first night, chosen by the file
-name rather than by any property of the recording, and the second night not downloaded.
+**These numbers replace an earlier result on 20 subjects, and they are worse.** That is
+reported here rather than quietly swapped in, because the difference is the finding: a
+cohort of twenty was not enough to estimate this, and it was not merely imprecise, it was
+*unrepresentative*. Wake was 17% of the small cohort and is 34% of the full one; N3 was
+14% and is 7%.
+
+**The protocol, stated so the number can be compared with anything.** Every Sleep Cassette
+subject with a first night — 76 of them — one night each, chosen by the file name rather
+than by any property of the recording. Second nights are not downloaded.
 Trimming uses the hypnogram itself to find the first and last non-wake epoch and keeps 30
 minutes on each side, so **the evaluation is scored around a sleep interval located by the
 reference annotation**. That is a valid benchmark scope and a disclosed one: it does not
 measure finding sleep inside an unrestricted recording. Hyperparameters are the library
 defaults, fixed before any run and never searched, so there is no inner selection loop to
 group — and nothing was tuned against these folds. Every metric is the mean over the
-twenty per-subject folds, not pooled predictions, except the confusion matrix, which is
-summed.
+seventy-six per-subject folds, not pooled predictions, except the confusion matrix, which
+is summed.
 
 Consecutive epochs share no signal, which removes the overlap problem the WESAD tables
 carry. It does not make them independent: they come from one participant and one
@@ -46,17 +52,30 @@ leak. Splits are by subject here for that reason.
 
 | model | bal. accuracy | Cohen's κ | accuracy | macro F1 | worst subject |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| majority class | 0.200 ±0.000 | 0.000 | 0.440 | 0.121 | 0.200 |
-| logistic regression | **0.737 ±0.104** | 0.662 ±0.148 | 0.748 | 0.686 | 0.420 |
-| random forest | 0.725 ±0.070 | **0.710 ±0.090** | 0.793 | 0.702 | 0.534 |
-| gradient boosting | 0.714 ±0.078 | 0.708 ±0.102 | **0.794** | 0.699 | 0.540 |
+| majority class | 0.206 ±0.016 | 0.000 | 0.377 | 0.110 | 0.200 |
+| logistic regression | **0.695 ±0.111** | 0.607 ±0.135 | 0.721 | 0.613 | 0.227 |
+| random forest | 0.674 ±0.102 | **0.656 ±0.124** | **0.765** | **0.633** | 0.310 |
+
+Against the twenty-subject cohort, every column moved the same way:
+
+| random forest | 20 subjects | 76 subjects |
+| --- | ---: | ---: |
+| Cohen's κ | 0.710 ±0.090 | **0.656 ±0.124** |
+| accuracy | 0.793 | 0.765 |
+| balanced accuracy | 0.725 | 0.674 |
+| worst subject | 0.534 | **0.310** |
+
+The majority row is 0.206 rather than exactly 0.200 because not every participant reaches
+every stage; a fold missing one scores a constant answer at 1/4 rather than 1/5. It is
+still zero on κ, which is the point of reporting κ.
 
 Sleep staging is reported in Cohen's κ, not accuracy — the stages are unevenly distributed
 enough that raw agreement flatters everything, which the majority row makes concrete at
-44% accuracy and κ of exactly zero. **κ = 0.710 with 79% accuracy sits inside the range
-published for feature-based automatic staging under subject-wise validation**, which is
-the check that matters here: the pipeline is new, the task is not, and a number far outside
-that range would mean something was wrong rather than something was discovered.
+38% accuracy and κ of exactly zero. **κ = 0.656 with 77% accuracy sits at the lower end of
+the range published for feature-based automatic staging under subject-wise validation**,
+which is the check that matters here: the pipeline is new, the task is not, and a number
+far outside that range would mean something was wrong rather than something was found. At
+twenty subjects it looked like 0.710, comfortably mid-range; the honest figure is lower.
 
 ### The features, in full
 
@@ -106,9 +125,12 @@ function of how tense the participant's jaw was.
 
 | per-stage recall | N1 | N2 | N3 | REM | W |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| logistic regression | **0.562** | 0.725 | 0.909 | 0.716 | 0.773 |
-| random forest | 0.303 | 0.815 | 0.886 | 0.761 | 0.858 |
-| gradient boosting | 0.288 | 0.851 | 0.867 | 0.710 | 0.855 |
+| logistic regression | **0.473** | 0.712 | 0.740 | 0.702 | 0.770 |
+| random forest | 0.319 | 0.810 | 0.641 | 0.656 | **0.890** |
+
+N3 is where the larger cohort hurt most: recall falls from 0.885 to 0.641 for random
+forest. It was 14% of the twenty-subject cohort and is 7% of this one, so there is half as
+much of it to learn from and it is being predicted away in favour of the classes that grew.
 
 **Logistic regression finds N1 nearly twice as often as random forest and agrees with the
 scorer less overall.** That is the whole disagreement between the two columns above: κ
@@ -122,18 +144,26 @@ scorer's label, columns the model's:
 
 | scored → | N1 | N2 | N3 | REM | W | recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **N1** | **429** | 156 | 5 | 385 | 265 | 0.346 |
-| **N2** | 281 | **7,510** | 445 | 751 | 213 | 0.816 |
-| **N3** | 11 | 274 | **2,638** | 4 | 54 | 0.885 |
-| **REM** | 323 | 468 | 6 | **2,786** | 173 | 0.742 |
-| **W** | 227 | 69 | 23 | 173 | **2,957** | 0.857 |
+| **N1** | **3,190** | 2,895 | 25 | 1,740 | 2,244 | 0.316 |
+| **N2** | 2,033 | **27,328** | 1,313 | 1,697 | 1,092 | 0.817 |
+| **N3** | 2 | 1,127 | **5,172** | 10 | 147 | 0.801 |
+| **REM** | 1,641 | 1,459 | 27 | **7,740** | 1,036 | 0.650 |
+| **W** | 1,922 | 331 | 98 | 695 | **26,686** | 0.898 |
 
-Of the N1 epochs it gets wrong, **31% go to REM and 21% to wake** — N1 is the transition
-into sleep, shares its theta with REM, and is the stage human scorers agree on least. A
-model that confuses N1 with REM and wake is failing the way the problem fails. The other
-large cell is REM read as N2 (468) and N2 read as REM (751), which is the same boundary
-seen from both sides. N3 is barely confused with anything: slow-wave sleep looks like
-nothing else.
+**These recalls are not the ones in the table above, and the difference is not an error.**
+This matrix is summed across folds, so it is dominated by participants with many epochs of
+a stage; the per-stage recalls reported earlier are the mean over the seventy-six
+participant folds, so a participant with fifteen N3 epochs counts as much as one with a
+thousand. N3 reads 0.801 pooled and 0.641 averaged, and the gap is exactly the population
+of participants who have very little N3 and whom the model scores badly on it. The
+averaged figure is the one that answers "how will this do for a person"; the pooled one
+answers "how many epochs did it get right".
+
+Of the N1 epochs it gets wrong, **29% go to N2, 22% to wake and 17% to REM**. N1 is the
+transition into sleep, and it borders all three. On the twenty-subject cohort the largest
+confusion was with REM; with 76 it is with N2 — which is another reason not to have drawn
+conclusions from twenty. The other large cells are REM read as N2 (1,459) and N2 read as
+REM (1,697), the same boundary seen from both sides.
 
 ### One EEG derivation gets most of the way
 
