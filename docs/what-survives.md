@@ -34,6 +34,8 @@ not, and an interval built from windows would be far too narrow.
 | ~~"Sleep staging reaches κ 0.710."~~ | **0.656** on all 76 subjects rather than the first 20. Every column fell and the spread widened; the worst participant went from 0.534 to 0.310. The small cohort was unrepresentative, not merely small — wake is 17% of it and 34% of the whole. |
 | ~~"N1 is confused with REM, which it shares theta with."~~ | On 76 subjects N1 goes to **N2 29%**, wake 22%, REM 17%. The REM explanation was built on twenty subjects, where it was the largest cell. |
 
+| **Every EEG and EOG channel contributes; the chin EMG does not.** | Paired over 76 participants: Fpz-Cz −0.040 [−0.055, −0.025], Pz-Oz −0.030 [−0.047, −0.014], EOG −0.029 [−0.037, −0.021]. Chin EMG **+0.000 [−0.002, +0.002]**, with 38 of 76 improving without it. |
+
 ## Verified rather than asserted
 
 | claim | how |

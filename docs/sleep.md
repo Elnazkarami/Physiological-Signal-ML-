@@ -169,35 +169,43 @@ REM (1,697), the same boundary seen from both sides.
 
 The montage question, answered on identical rows and folds with random forest:
 
-| channel | features | bal. accuracy | κ | worst subject |
-| --- | ---: | ---: | ---: | ---: |
-| everything | 48 | 0.725 ±0.070 | 0.710 | 0.534 |
-| **EEG Fpz-Cz alone** | 20 | **0.683 ±0.088** | **0.657** | 0.392 |
-| EEG Pz-Oz alone | 20 | 0.663 ±0.074 | 0.625 | 0.530 |
-| EOG horizontal alone | 5 | 0.637 ±0.071 | 0.547 | 0.446 |
-| chin EMG alone | 3 | 0.269 ±0.044 | 0.094 | 0.190 |
-| without Fpz-Cz | 28 | 0.695 ±0.076 | 0.664 | 0.518 |
-| without Pz-Oz | 28 | 0.710 ±0.090 | 0.682 | 0.452 |
-| without EOG | 43 | 0.712 ±0.075 | 0.694 | 0.547 |
-| without chin EMG | 45 | 0.725 ±0.071 | 0.710 | 0.527 |
+What each channel contributes, paired participant by participant across all 76 and
+resampled over participants:
 
-**A single frontal derivation reaches κ 0.657, against 0.710 for the whole montage.**
-Fpz-Cz is a voltage difference between two electrode sites, not one electrode; the reduced
-montage is one derivation, not one contact. It beats Pz-Oz on both measures and contributes
-twice as much on removal, consistent with it being the derivation single-channel staging is
-usually built on. Whether 0.657 is good enough is a question for a particular purpose — it
-is a promising reduced-montage result on one cohort of twenty, not a demonstration of
-wearable suitability.
+| removed | mean κ change | 95% interval | improved |
+| --- | ---: | ---: | ---: |
+| **EEG Fpz-Cz** | **−0.040** | [−0.055, −0.025] | 15 of 76 |
+| EEG Pz-Oz | −0.030 | [−0.047, −0.014] | 15 of 76 |
+| EOG horizontal | −0.029 | [−0.037, −0.021] | 13 of 76 |
+| chin EMG | +0.000 | [−0.002, +0.002] | **38 of 76** |
 
-Two channels earn less than they look like they should. The electro-oculogram alone
-reaches κ 0.547, which is far above chance for five features — but removing it from the
-full set costs 0.012, because the EEG channels already carry most of what it says. And
-**chin electromyography contributes nothing at all**: alone it is barely above chance
-(κ 0.094 against 0.000), and removing it leaves the model unchanged. Muscle atonia is half
-the textbook definition of REM, so that deserves an explanation rather than a shrug: in
-these files the EMG is stored at 1 Hz as an envelope, giving 30 samples per epoch and
-three crude amplitude features. The finding is about this recording of that channel, not
-about chin tone.
+**Fpz-Cz resolves here and did not at twenty subjects**, where it was −0.046 with an
+interval of [−0.095, +0.003] — the largest contributor by mean, and not distinguishable
+from nothing. With 76 the interval narrows from 0.098 wide to 0.030 and excludes zero.
+
+**The three real channels are far closer than the small cohort suggested.** Twenty
+subjects gave 0.046 / 0.029 / 0.017, an apparently clear ordering. Seventy-six give
+0.040 / 0.030 / 0.029: Pz-Oz and the electro-oculogram are indistinguishable from each
+other, and the frontal derivation leads by less than the earlier means implied.
+
+**And the chin electromyogram is as clean a null as this project has produced**: no change
+at all to three decimal places, an interval of ±0.002, and exactly half the cohort — 38 of
+76 — scoring better without it.
+
+Fpz-Cz is a voltage difference between two electrode sites, not one electrode; a reduced
+montage is one derivation, not one contact. It contributes most of the three, consistent
+with being the derivation single-channel staging is usually built on — but *most* is
+0.040 against 0.030, not the factor of two the twenty-subject means suggested.
+
+The single-derivation scores are being recomputed on the full cohort; the figures
+previously quoted here (κ 0.657 alone against 0.710 for the montage) were measured on
+twenty subjects and both of those numbers have since moved.
+
+**Chin electromyography contributes nothing**, and now with a bound: ±0.002 of kappa, with
+half the cohort improving without it. Muscle atonia is half the textbook definition of
+REM, so that deserves an explanation rather than a shrug — in these files the EMG is
+stored at 1 Hz as an envelope, giving 30 samples per epoch and three crude amplitude
+features. The finding is about this recording of that channel, not about chin tone.
 
 
 ---
