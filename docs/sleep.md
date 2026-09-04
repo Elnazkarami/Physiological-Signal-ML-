@@ -197,9 +197,31 @@ montage is one derivation, not one contact. It contributes most of the three, co
 with being the derivation single-channel staging is usually built on — but *most* is
 0.040 against 0.030, not the factor of two the twenty-subject means suggested.
 
-The single-derivation scores are being recomputed on the full cohort; the figures
-previously quoted here (κ 0.657 alone against 0.710 for the montage) were measured on
-twenty subjects and both of those numbers have since moved.
+On the full cohort, each channel on its own:
+
+| alone | features | bal. accuracy | κ | worst subject |
+| --- | ---: | ---: | ---: | ---: |
+| everything | 48 | 0.674 ±0.102 | **0.656** | 0.310 |
+| **EEG Fpz-Cz** | 20 | 0.613 ±0.097 | **0.569** | 0.392 |
+| EEG Pz-Oz | 20 | 0.593 ±0.113 | 0.552 | 0.122 |
+| EOG horizontal | 5 | 0.569 ±0.094 | 0.473 | 0.280 |
+| chin EMG | 3 | 0.276 ±0.056 | 0.118 | 0.177 |
+
+**A single frontal derivation reaches κ 0.569 against 0.656 for the whole montage.** At
+twenty subjects those figures read 0.657 and 0.710 — both fell, and the gap between them
+widened from 0.053 to 0.087. The reduced montage keeps less of the full result than the
+small cohort suggested.
+
+Whether 0.569 is good enough is a question for a particular purpose, and this is a
+promising reduced-montage result on one cohort rather than a demonstration of wearable
+suitability. The two electroencephalogram derivations are close to each other alone
+(0.569 against 0.552) — closer than the frontal one's larger removal cost implies, which
+is what happens when two channels carry overlapping information: each is nearly sufficient
+alone and neither is quite redundant.
+
+One number in that table is worth pausing on. **Pz-Oz alone has a worst participant of
+0.122** — well below the 0.200 a constant answer scores. A model can do worse than
+chance for one person, and averaging it with seventy-five others hides that completely.
 
 **Chin electromyography contributes nothing**, and now with a bound: ±0.002 of kappa, with
 half the cohort improving without it. Muscle atonia is half the textbook definition of
