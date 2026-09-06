@@ -104,6 +104,56 @@ class FeatureTable:
             values=self.values[:, columns],
         )
 
+    def concat(self, other: FeatureTable) -> FeatureTable:
+        """Two tables built separately, joined into one.
+
+        Needed because a cohort can be too large to hold on disk at once: the
+        second night of Sleep-EDF is another 3.7 GB of recordings, and the
+        features from the first are 32 MB. Building each and joining the tables
+        is the only way through that on a machine with less room than the
+        dataset.
+
+        The two must agree on their columns, in order, and on the versions they
+        were built under. Joining tables from different feature sets would
+        produce one that is neither, and nothing downstream could tell.
+        """
+        if self.feature_names != other.feature_names:
+            mine, theirs = set(self.feature_names), set(other.feature_names)
+            if mine == theirs:
+                # Same columns, different order. Stacking them would transpose
+                # values into the wrong features without changing any shape.
+                raise ValueError(
+                    "these tables do not have the same columns in the same order; "
+                    "order is part of the agreement, and stacking them would put "
+                    "each column's values under another column's name"
+                )
+            raise ValueError(
+                "these tables do not have the same columns: "
+                f"{sorted(mine - theirs) or 'none'} missing from the second, "
+                f"{sorted(theirs - mine) or 'none'} missing from the first"
+            )
+        for field_name in ("feature_set_version", "qc_policy_version"):
+            if getattr(self, field_name) != getattr(other, field_name):
+                raise ValueError(
+                    f"these tables disagree about {field_name}: "
+                    f"{getattr(self, field_name)!r} and {getattr(other, field_name)!r}"
+                )
+
+        codes = dict(self.qc_codes)
+        for key, count in other.qc_codes.items():
+            codes[key] = codes.get(key, 0) + count
+
+        return replace(
+            self,
+            values=np.vstack([self.values, other.values]),
+            subjects=np.concatenate([self.subjects, other.subjects]),
+            labels=np.concatenate([self.labels, other.labels]),
+            window_ids=self.window_ids + other.window_ids,
+            window_starts=np.concatenate([self.window_starts, other.window_starts]),
+            dropped_incomplete=self.dropped_incomplete + other.dropped_incomplete,
+            qc_codes=codes,
+        )
+
     def counts(self) -> dict[str, int]:
         unique, counts = np.unique(self.labels, return_counts=True)
         return dict(zip(unique.tolist(), counts.tolist(), strict=True))

@@ -713,3 +713,67 @@ def test_a_manifest_names_who_could_not_be_scored():
     )
     assert found["skipped_subjects"] == ["S7"]
     assert all("S7" not in f["test"] for f in found["folds"])
+
+
+# ── joining tables built separately ─────────────────────────────────────────
+
+
+def test_two_tables_join_into_one():
+    """A cohort can be too large to hold on disk at once."""
+    first = table(rows_per_subject=20, seed=1)
+    second = table(rows_per_subject=20, seed=2)
+    joined = first.concat(second)
+
+    assert len(joined) == len(first) + len(second)
+    assert joined.feature_names == first.feature_names
+    assert joined.values.shape == (len(first) + len(second), 2)
+    assert np.array_equal(joined.values[: len(first)], first.values)
+    assert np.array_equal(joined.values[len(first) :], second.values)
+
+
+def test_joining_carries_the_row_provenance_through():
+    first = table(rows_per_subject=20, seed=1)
+    second = table(rows_per_subject=20, seed=2)
+    joined = first.concat(second)
+
+    assert len(joined.window_ids) == len(joined)
+    assert joined.window_starts.size == len(joined)
+    assert not np.isnan(joined.window_starts).any()
+    assert joined.dropped_incomplete == (
+        first.dropped_incomplete + second.dropped_incomplete
+    )
+
+
+def test_joining_sums_the_quality_control_counts():
+    first = replace(table(rows_per_subject=10), qc_codes={"BVP:motion": 3, "EDA:flat": 1})
+    second = replace(table(rows_per_subject=10), qc_codes={"BVP:motion": 4})
+    assert first.concat(second).qc_codes == {"BVP:motion": 7, "EDA:flat": 1}
+
+
+def test_tables_with_different_columns_are_refused():
+    """Joining two feature sets produces one that is neither, and nothing
+    downstream could tell."""
+    first = table(rows_per_subject=10)
+    second = first.select(["a"])
+    with pytest.raises(ValueError, match="do not have the same columns"):
+        first.concat(second)
+
+
+def test_tables_built_under_different_versions_are_refused():
+    first = table(rows_per_subject=10)
+    second = replace(first, feature_set_version="test-2")
+    with pytest.raises(ValueError, match="disagree about feature_set_version"):
+        first.concat(second)
+
+    third = replace(first, qc_policy_version="other")
+    with pytest.raises(ValueError, match="disagree about qc_policy_version"):
+        first.concat(third)
+
+
+def test_the_same_columns_in_a_different_order_are_refused():
+    """Order is part of the agreement: a model fitted on one is not fitted on
+    the other, and the values would be silently transposed."""
+    first = table(rows_per_subject=10)
+    reordered = first.select(["b", "a"])
+    with pytest.raises(ValueError, match="same order"):
+        first.concat(reordered)
