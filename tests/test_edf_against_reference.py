@@ -18,14 +18,35 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from physioml.io.edf import ANNOTATION_LABEL, EDF
+from physioml.io.edf import ANNOTATION_LABEL, EDF, EDFError
 from tests.paths import SLEEP_EDF_DIR as SLEEP_EDF
 from tests.paths import SLEEP_MISSING
 
 pyedflib = pytest.importorskip("pyedflib", reason="pyedflib is not installed")
 
-RECORDINGS = sorted(SLEEP_EDF.glob("*PSG.edf")) if SLEEP_EDF.is_dir() else []
-HYPNOGRAMS = sorted(SLEEP_EDF.glob("*Hypnogram.edf")) if SLEEP_EDF.is_dir() else []
+
+def _complete(paths: list[Path]) -> list[Path]:
+    """Only files that are whole.
+
+    A directory of recordings may be mid-download, and a half-written file is
+    not evidence about a reader -- it is evidence about a network. The reader's
+    own truncation guard is what identifies them, and it is tested directly
+    elsewhere; here they are simply not the subject.
+    """
+    whole = []
+    for path in paths:
+        try:
+            EDF(path)
+        except EDFError:
+            continue
+        whole.append(path)
+    return whole
+
+
+RECORDINGS = _complete(sorted(SLEEP_EDF.glob("*PSG.edf"))) if SLEEP_EDF.is_dir() else []
+HYPNOGRAMS = (
+    _complete(sorted(SLEEP_EDF.glob("*Hypnogram.edf"))) if SLEEP_EDF.is_dir() else []
+)
 
 needs_files = pytest.mark.skipif(not RECORDINGS, reason=SLEEP_MISSING)
 
