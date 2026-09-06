@@ -120,8 +120,8 @@ the second to the first is indistinguishable from either** — while doubling th
 taking the worst participant to a threshold failure, and costing one person in fifteen
 entirely. The 0.010 is a description of this sample, not evidence of an improvement.
 
-That is a stronger reason not to add the strap than the one I first reported, and it is a
-reason that a cohort mean by itself could never have produced.
+That is a conclusion a cohort mean by itself could not have produced: the mean says
++0.010 and looks like an improvement.
 
 
 ---

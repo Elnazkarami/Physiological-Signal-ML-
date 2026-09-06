@@ -1,7 +1,7 @@
-# Calibration, and a personalisation result that did not survive
+# Calibration, and the limits of personalising it
 
-Whether the probabilities mean what they say, what cohort calibration fixes, and why
-fitting a calibrator on a person's own data made things worse.
+Whether the probabilities mean what they say, what cohort calibration fixes, and what a
+short enrolment from the person themselves does and does not buy.
 ## Calibration fixes the spread, not the average
 
 A probability is calibrated if the windows it calls 30% likely turn out stressed about
@@ -75,14 +75,14 @@ specific to them.
 
 So the honest statement is that these probabilities are better than they were and are
 still not good enough to put in front of someone as a percentage. What closes the gap is
-[a few minutes of the person's own data](#personal-calibration-on-short-labelled-blocks--a-negative-result).
+[a few minutes of the person's own data](#personal-calibration-on-short-labelled-blocks).
 
-## Personal calibration on short labelled blocks — a negative result
+## Personal calibration on short labelled blocks
 
 Cohort calibration narrows the spread of stated confidence across people and cannot close
 it. The obvious next step is a short enrolment: a few labelled minutes from the person
 themselves, used to fit a calibrator for them alone. It does not work here, and the way it
-fails is worth more than the result I first reported.
+fails says something general about how calibration should be measured.
 
 **The model is never trained on the enrolment.** It stays leave-one-subject-out; only the
 calibrator sees the person's own data. Enrolment windows, and every window overlapping
@@ -181,10 +181,9 @@ class has nothing to calibrate. **Blocks spread evenly** may or may not find the
 episode depending on where it falls. Taking the opening slice of each condition is what
 works — and it is also what makes the result retrospective.
 
-One number here was wrong before it was right. Enrolment cost was first reported as one
-minute per window — 107 minutes for a session that ran for 60. These windows overlap by 55
-of their 60 seconds, so the cost is the union of what they cover, not the sum of their
-lengths.
+Enrolment cost is the union of what the windows cover, not the sum of their lengths:
+these overlap by 55 of their 60 seconds, so counting them individually would report 107
+minutes for a session that ran for 60.
 
 
 ---

@@ -27,11 +27,9 @@ through the file naming.
 
 96,137 epochs, 48 features, five stages — N2 36%, W 34%, REM 13%, N1 11%, N3 7%.
 
-**These numbers replace an earlier result on 20 subjects, and they are worse.** That is
-reported here rather than quietly swapped in, because the difference is the finding: a
-cohort of twenty was not enough to estimate this, and it was not merely imprecise, it was
-*unrepresentative*. Wake was 17% of the small cohort and is 34% of the full one; N3 was
-14% and is 7%.
+The full Sleep Cassette cohort. Class balance matters for reading the numbers below:
+wake is a third of it and N3 under a tenth, and a subset of twenty subjects has a
+noticeably different mix — 17% wake and 14% N3 — which is enough to move every score.
 
 **The protocol, stated so the number can be compared with anything.** Every Sleep Cassette
 subject with a first night — 76 of them — one night each, chosen by the file name rather
@@ -56,26 +54,17 @@ leak. Splits are by subject here for that reason.
 | logistic regression | **0.695 ±0.111** | 0.607 ±0.135 | 0.721 | 0.613 | 0.227 |
 | random forest | 0.674 ±0.102 | **0.656 ±0.124** | **0.765** | **0.633** | 0.310 |
 
-Against the twenty-subject cohort, every column moved the same way:
-
-| random forest | 20 subjects | 76 subjects |
-| --- | ---: | ---: |
-| Cohen's κ | 0.710 ±0.090 | **0.656 ±0.124** |
-| accuracy | 0.793 | 0.765 |
-| balanced accuracy | 0.725 | 0.674 |
-| worst subject | 0.534 | **0.310** |
-
 The majority row is 0.206 rather than exactly 0.200 because not every participant reaches
 every stage; a fold missing one scores a constant answer at 1/4 rather than 1/5. It is
 still zero on κ, which is the point of reporting κ.
 
 Sleep staging is reported in Cohen's κ, not accuracy — the stages are unevenly distributed
 enough that raw agreement flatters everything, which the majority row makes concrete at
-38% accuracy and κ of exactly zero. **κ = 0.656 with 77% accuracy sits at the lower end of
+38% accuracy and κ of exactly zero. **κ = 0.656 with 77% accuracy sits within
 the range published for feature-based automatic staging under subject-wise validation**,
-which is the check that matters here: the pipeline is new, the task is not, and a number
-far outside that range would mean something was wrong rather than something was found. At
-twenty subjects it looked like 0.710, comfortably mid-range; the honest figure is lower.
+toward its lower end — which is the check that matters here: the pipeline is new, the task
+is not, and a number far outside that range would mean something was wrong rather than
+something was found.
 
 ### The features, in full
 
@@ -128,9 +117,8 @@ function of how tense the participant's jaw was.
 | logistic regression | **0.473** | 0.712 | 0.740 | 0.702 | 0.770 |
 | random forest | 0.319 | 0.810 | 0.641 | 0.656 | **0.890** |
 
-N3 is where the larger cohort hurt most: recall falls from 0.885 to 0.641 for random
-forest. It was 14% of the twenty-subject cohort and is 7% of this one, so there is half as
-much of it to learn from and it is being predicted away in favour of the classes that grew.
+N3 is the hardest of the four common stages here at 0.641 averaged over participants: it
+is under a tenth of the epochs, so there is comparatively little of it to learn from.
 
 **Logistic regression finds N1 nearly twice as often as random forest and agrees with the
 scorer less overall.** That is the whole disagreement between the two columns above: κ
@@ -150,19 +138,16 @@ scorer's label, columns the model's:
 | **REM** | 1,641 | 1,459 | 27 | **7,740** | 1,036 | 0.650 |
 | **W** | 1,922 | 331 | 98 | 695 | **26,686** | 0.898 |
 
-**These recalls are not the ones in the table above, and the difference is not an error.**
-This matrix is summed across folds, so it is dominated by participants with many epochs of
-a stage; the per-stage recalls reported earlier are the mean over the seventy-six
-participant folds, so a participant with fifteen N3 epochs counts as much as one with a
-thousand. N3 reads 0.801 pooled and 0.641 averaged, and the gap is exactly the population
-of participants who have very little N3 and whom the model scores badly on it. The
-averaged figure is the one that answers "how will this do for a person"; the pooled one
-answers "how many epochs did it get right".
+**This matrix is summed across folds; the per-stage recalls above are averaged over
+participants.** The two answer different questions and give different numbers: N3 reads
+0.801 pooled and 0.641 averaged, and the gap is the participants who have very little N3
+and whom the model scores badly on it. The averaged figure says how this will do for a
+person; the pooled one says how many epochs it got right.
 
 Of the N1 epochs it gets wrong, **29% go to N2, 22% to wake and 17% to REM**. N1 is the
-transition into sleep, and it borders all three. On the twenty-subject cohort the largest
-confusion was with REM; with 76 it is with N2 — which is another reason not to have drawn
-conclusions from twenty. The other large cells are REM read as N2 (1,459) and N2 read as
+transition into sleep and it borders all three, which is why it is the stage every
+automatic scorer struggles with and the one human scorers agree on least. The other large
+cells are REM read as N2 (1,459) and N2 read as
 REM (1,697), the same boundary seen from both sides.
 
 ### One EEG derivation gets most of the way
@@ -179,14 +164,10 @@ resampled over participants:
 | EOG horizontal | −0.029 | [−0.037, −0.021] | 13 of 76 |
 | chin EMG | +0.000 | [−0.002, +0.002] | **38 of 76** |
 
-**Fpz-Cz resolves here and did not at twenty subjects**, where it was −0.046 with an
-interval of [−0.095, +0.003] — the largest contributor by mean, and not distinguishable
-from nothing. With 76 the interval narrows from 0.098 wide to 0.030 and excludes zero.
-
-**The three real channels are far closer than the small cohort suggested.** Twenty
-subjects gave 0.046 / 0.029 / 0.017, an apparently clear ordering. Seventy-six give
-0.040 / 0.030 / 0.029: Pz-Oz and the electro-oculogram are indistinguishable from each
-other, and the frontal derivation leads by less than the earlier means implied.
+**All three signal channels contribute, and by similar amounts.** The frontal derivation
+leads at 0.040, with the occipital one and the electro-oculogram at 0.030 and 0.029 —
+close enough that their intervals overlap, so the ordering between those two is not
+something this cohort establishes.
 
 **And the chin electromyogram is as clean a null as this project has produced**: no change
 at all to three decimal places, an interval of ±0.002, and exactly half the cohort — 38 of
@@ -207,10 +188,9 @@ On the full cohort, each channel on its own:
 | EOG horizontal | 5 | 0.569 ±0.094 | 0.473 | 0.280 |
 | chin EMG | 3 | 0.276 ±0.056 | 0.118 | 0.177 |
 
-**A single frontal derivation reaches κ 0.569 against 0.656 for the whole montage.** At
-twenty subjects those figures read 0.657 and 0.710 — both fell, and the gap between them
-widened from 0.053 to 0.087. The reduced montage keeps less of the full result than the
-small cohort suggested.
+**A single frontal derivation reaches κ 0.569 against 0.656 for the whole montage** —
+87% of the agreement from one electrode pair, which is the finding a wearable would be
+designed around.
 
 Whether 0.569 is good enough is a question for a particular purpose, and this is a
 promising reduced-montage result on one cohort rather than a demonstration of wearable

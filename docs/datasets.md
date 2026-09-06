@@ -66,7 +66,7 @@ and per-axis variation. Quality control runs first and a rejected signal contrib
 nothing, because a heart rate from a flatlined sensor is not a missing value — it is a
 confident wrong one.
 
-**Pulse-rate variability is not among them.** SDNN, RMSSD and pNN50 were implemented,
+**Pulse-rate variability is not among them.** SDNN, RMSSD and pNN50 were implemented and
 then compared against the chest electrocardiogram WESAD records alongside the wrist, on
 the same windows of the same subject. The electrocardiogram is a *reference estimate*, not
 ground truth: it is this pipeline's own R-peak detection on a cleaner signal, validated

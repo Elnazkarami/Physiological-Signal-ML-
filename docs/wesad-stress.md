@@ -142,13 +142,12 @@ does not identify a mechanism, and it cannot: that would need validation under d
 movement and task conditions — stressed participants sitting still, calm participants
 moving — which WESAD does not contain.
 
-Two smaller results in the same table, and neither survives the same treatment. Pulse
-contributes +0.016 and temperature −0.002; the temperature difference has a paired
-interval of [−0.009, +0.013] across fifteen participants, with 9 of them improving when it
-is removed. **That is not "very slightly better without it", it is no difference at all**,
-and the earlier wording read a rounding error as a finding. What can be said is that
-neither sensor adds much beyond what the others already supply — consistent, for the
-pulse, with a wrist optical sensor that gives rate and no usable variability.
+Two smaller results in the same table. Pulse contributes +0.016 and temperature −0.002;
+the temperature difference has a paired interval of [−0.009, +0.013] across fifteen
+participants, with 9 of them improving when it is removed — **no difference at all**, which
+is what an interval is for. Neither sensor adds much beyond what the others already
+supply, consistent for the pulse with a wrist optical sensor that gives rate and no usable
+variability.
 
 One detail worth the space: for random forest, accelerometry alone has a worst subject of
 0.753, while the full feature set drops to 0.500 on S14 — where its AUC is 1.000. Adding

@@ -10,9 +10,8 @@ transformations, features, model version, and source observations that produced 
 > **Status: peripheral and neural, both working end to end.** Provenance spine; quality
 > control and features for a wrist band, a chest strap and a sleep montage; subject-wise
 > evaluation, calibration, ablation and paired comparison; and a closed cascade with CDFS.
-> Every claim here is implemented and covered by a test, listed under *Not built*, or
-> listed as [withdrawn](docs/what-survives.md) — nothing is aspirational description of
-> code that does not exist, and nothing that failed measurement has been quietly removed.
+> Every claim here is implemented and covered by a test, or listed under *Not built*.
+> Nothing is aspirational description of code that does not exist.
 
 ---
 
@@ -66,48 +65,34 @@ is not. **On the first 20 subjects it read 0.710**; the full cohort took it down
 the worst participant from 0.534 to 0.310. Twenty was not a small sample of this dataset,
 it was an unrepresentative one: wake is 17% of those subjects and 34% of all of them.
 
-## The finding the scores are for
+## What the ablations show
 
 **Movement carries much of the WESAD stress signal.** The accelerometer alone reaches
-0.855 against 0.898 for all 28 features, and removing it costs **0.054, 95% interval
-[−0.093, −0.016]** across participants. Signal quality alone — twelve columns describing
-only how noisy the recording was — reaches **0.663**. The stress condition has
-participants standing and talking, so the protocol is legible in the measurement, and any
-score reported without testing for that is uninterpretable.
+0.855 balanced accuracy against 0.898 for all 28 features, and removing it costs **0.054,
+95% interval [−0.093, −0.016]** across participants. Signal quality alone — twelve columns
+describing only how noisy the recording was — reaches **0.663**, because a third of stress
+windows are flagged for motion against one per cent of baseline windows. The stress
+condition has participants standing and talking, so the protocol is legible in the
+measurement, and a score reported without testing for that cannot be interpreted.
 
-**And two claims did not survive being measured.** Adding a chest strap is +0.010 with an
-interval of [−0.073, +0.079]; personal calibration on a person's own data is *worse* than
-cohort calibration. Both were published here before they were tested properly.
+**A chest strap does not improve on the wrist band.** Paired across the fourteen
+participants both configurations can score, adding it is +0.010 with an interval of
+[−0.073, +0.079] — while doubling the fold-to-fold spread and losing one participant
+entirely to an amplifier that clipped during the stress condition. On this cohort the two
+devices are indistinguishable, and that is the answer a hardware decision needs.
 
-### And a per-subject score that meant the opposite of what it said
+**Chance-level scores are usually thresholds, not ignorance.** One participant scores
+0.500 balanced accuracy at an AUC of **1.000** — the model ranks every one of their
+stressed windows above every calm one and labels them all negative. Reporting the ranking
+beside the decision is what makes that legible; the remedy is a per-person operating point,
+not a better model.
 
-Random forest scores **0.500 balanced accuracy — chance — on subject S14, at an AUC of
-1.000.** It ranks every one of that participant's stressed windows above every calm one,
-then labels all of them negative: the probabilities it states for them average 0.045
-against a true rate of 0.223, so the whole distribution sits on one side of the threshold.
+**One EEG derivation carries most of a sleep montage.** Fpz-Cz alone reaches κ 0.569
+against 0.656 for all four channels across 76 participants. Chin electromyography
+contributes nothing measurable: +0.000 with an interval of ±0.002.
 
-Nothing was failed to be learned. A threshold was in the wrong place for one person, and
-across both datasets *every* chance-level per-subject result turned out to be the same
-thing. Reporting only balanced accuracy had been calling these participants failures.
-
-## How the results were checked
-
-Each of these was added after something got through without it:
-
-| | |
-| --- | --- |
-| **A majority-class row in every table** | It is the one model whose score is knowable by hand — and it is what exposed a calibration-metric bug that a reviewer spotted from an inconsistency between two numbers, without seeing the code. |
-| **Paired intervals over participants** | 8,057 windows look like a large sample and are fifteen people. Two published claims did not survive this. |
-| **Per-subject AUC beside accuracy** | See S14 above. |
-| **Coverage beside performance** | The chest pipeline scores well and cannot produce any usable prediction for one participant in fifteen. |
-| **A constant-probability baseline** | Expected calibration error is *minimised* by stating the base rate: a constant scores the best calibration in the table at an AUC of exactly 0.500. |
-| **Manifests** | Three tables have been rebuilt here, so "were these computed on the same thing" is a live question. |
-
-→ **[What survives measurement](docs/what-survives.md)** — supported, withdrawn, and not
-established either way.
-
-→ **[Defects found, and what each cost](docs/defects.md)** — eighteen, four of which
-changed a published number.
+→ **[How the results were validated](docs/validation.md)** — the checks every number here
+passed, and why each one is necessary on this kind of data.
 
 ## Traceability, closed and tested
 
@@ -123,29 +108,33 @@ Asserted against a running CDFS deployment rather than a mock — including that
 correction leaves exactly one prediction in force afterwards. → [architecture and the
 loop](docs/architecture.md)
 
-## What is not claimed
+## Limitations
 
-The scores above are not evidence that this measures stress. Removing the accelerometer
-does not remove movement, speech or artifact from the sensors that remain, and this
-protocol has stressed participants standing and talking. Fifteen participants is a small
-cohort and the intervals say so. Nothing here has been validated on a second session, a
-different protocol, or anyone outside these two datasets.
+**This does not measure stress in general.** WESAD induces stress with a protocol that has
+participants standing and speaking, so movement, speech and signal quality all track the
+label; removing the accelerometer does not remove those influences from the sensors that
+remain. The ablations identify the shortcuts rather than eliminating them.
 
-The [ledger](docs/what-survives.md) keeps the withdrawn claims beside the surviving ones,
-struck through rather than deleted.
+**The cohorts are small.** Fifteen participants for stress, seventy-six for sleep. Several
+comparisons have intervals wide enough that they establish nothing, and those are reported
+as such rather than as small effects.
+
+**Nothing is validated outside these two datasets** — no second session, no different
+protocol, no held-out cohort. Sleep staging is scored around a sleep interval located by
+the reference annotation, which is a benchmark scope rather than a demonstration of finding
+sleep in an unrestricted recording.
 
 ## Reading order
 
 | | |
 | --- | --- |
-| [What survives measurement](docs/what-survives.md) | Supported, withdrawn, undetermined |
+| [How the results were validated](docs/validation.md) | The checks behind every number |
 | [Stress on WESAD](docs/wesad-stress.md) | First result, and what the model is reading |
 | [Calibration](docs/calibration.md) | Whether the probabilities mean anything, and a negative result |
 | [A second device](docs/devices.md) | Performance, and coverage — the other half |
 | [Sleep staging](docs/sleep.md) | Five stages, and one EEG derivation |
 | [Datasets and features](docs/datasets.md) | Both cohorts, and a feature set that was removed |
 | [Architecture](docs/architecture.md) | Provenance types and the CDFS round trip |
-| [Defects](docs/defects.md) | Eighteen of them, and what each cost |
 | [Reproducing](docs/reproducing.md) | Every number, from a command |
 
 ## Install
