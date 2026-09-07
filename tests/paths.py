@@ -30,7 +30,10 @@ def _from_env(variable: str, default: Path) -> Path:
 WESAD_ARCHIVE = _from_env("PHYSIOML_WESAD", Path.home() / "Downloads" / "WESAD.zip")
 
 #: A directory of Sleep-EDF Expanded ``SC4*.edf`` files.
-SLEEP_EDF_DIR = _from_env("PHYSIOML_SLEEP_EDF", Path("/tmp/pm/sleep-edf"))
+#: Not a temporary directory: these are gigabytes that take hours to fetch over
+#: PhysioNet's rate limit, and a machine that clears /tmp on restart discards
+#: them between one session and the next.
+SLEEP_EDF_DIR = _from_env("PHYSIOML_SLEEP_EDF", Path.home() / "Downloads" / "sleep-edf")
 
 #: A CDFS checkout, for the integration tests that run against a real one.
 CDFS_REPO = _from_env(

@@ -7,11 +7,26 @@ Neither dataset can be redistributed, so the tests and scripts ask where yours a
 | variable | default | what |
 | --- | --- | --- |
 | `PHYSIOML_WESAD` | `~/Downloads/WESAD.zip` | the WESAD archive, read in place |
-| `PHYSIOML_SLEEP_EDF` | `/tmp/pm/sleep-edf` | a directory of Sleep-EDF `SC4*.edf` files |
+| `PHYSIOML_SLEEP_EDF` | `~/Downloads/sleep-edf` | a directory of Sleep-EDF `SC4*.edf` files |
 | `PHYSIOML_CDFS` | `~/Downloads/clinical-data-fabric-system` | a CDFS checkout, for the integration tests |
 
 Tests that need a dataset skip with a message naming the variable to set. Nothing fails
 because a file is missing, and nothing passes silently because it was never run.
+
+The Sleep-EDF default is under `~/Downloads` rather than a temporary directory on purpose:
+it is about 3.7 GB that takes hours to fetch over PhysioNet's rate limit, and a machine
+that clears `/tmp` on restart will discard it between sessions.
+
+To fetch it — politely, since parallel connections get throttled:
+
+```bash
+mkdir -p ~/Downloads/sleep-edf && cd ~/Downloads/sleep-edf
+curl -s https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/ \
+  | grep -oE 'SC4[0-9]{3}[A-Z0-9]*-(PSG|Hypnogram)\.edf' | sort -u \
+  | grep -E 'SC4[0-9][0-9]1' \
+  | xargs -P 3 -I{} curl -sf --retry 3 -O \
+      https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/{}
+```
 
 ## Recording what produced a number
 
