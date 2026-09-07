@@ -29,6 +29,11 @@ dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6"]
 # broke that job in one commit, which is what the job is for.
 reference = ["pyedflib>=0.1.30"]
 
+# The recurrent stage classifier. Separate because it is the only thing here
+# that needs it, and because the classical results should stay runnable without
+# a deep-learning install.
+deep = ["numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4", "torch>=2.2"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

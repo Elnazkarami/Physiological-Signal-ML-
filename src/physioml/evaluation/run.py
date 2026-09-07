@@ -57,18 +57,29 @@ class Evaluation:
         )
 
 
-def _fit(model: Any, X: np.ndarray, y: np.ndarray, subjects: np.ndarray) -> None:
-    """Fit, telling the model who each row belongs to if it asks.
+def _extras(method: Any, subjects: np.ndarray, order: np.ndarray) -> dict[str, np.ndarray]:
+    """Which of the row's coordinates this model wants.
 
-    A calibrator needs the grouping to hold participants out of its own inner
-    split; a plain estimator does not take the argument at all. Asked by
-    signature rather than by try/except, so a TypeError raised *inside* a fit
-    is not swallowed and reported as "this model does not want groups".
+    A calibrator needs the participant, to hold people out of its own inner
+    split. A sequence model needs the participant *and* the time, because
+    without them the rows are not a sequence but a pile. A plain estimator
+    takes neither. Asked by signature rather than by try/except, so a
+    TypeError raised inside a fit is not swallowed and reported as "this
+    model did not want groups".
     """
-    if "groups" in inspect.signature(model.fit).parameters:
-        model.fit(X, y, groups=subjects)
-    else:
-        model.fit(X, y)
+    wanted = inspect.signature(method).parameters
+    found: dict[str, np.ndarray] = {}
+    if "groups" in wanted:
+        found["groups"] = subjects
+    if "order" in wanted:
+        found["order"] = order
+    return found
+
+
+def _fit(
+    model: Any, X: np.ndarray, y: np.ndarray, subjects: np.ndarray, order: np.ndarray
+) -> None:
+    model.fit(X, y, **_extras(model.fit, subjects, order))
 
 
 def manifest(evaluation: Evaluation) -> dict[str, Any]:
@@ -146,10 +157,26 @@ def evaluate(
             continue
 
         model = model_factory()
-        _fit(model, table.values[train_rows], y_train, table.subjects[train_rows])
-        predicted = model.predict(table.values[test_rows])
+        _fit(
+            model,
+            table.values[train_rows],
+            y_train,
+            table.subjects[train_rows],
+            table.window_starts[train_rows],
+        )
+        test_extras = _extras(
+            model.predict, table.subjects[test_rows], table.window_starts[test_rows]
+        )
+        predicted = model.predict(table.values[test_rows], **test_extras)
         probability = (
-            model.predict_proba(table.values[test_rows])[:, 1]
+            model.predict_proba(
+                table.values[test_rows],
+                **_extras(
+                    model.predict_proba,
+                    table.subjects[test_rows],
+                    table.window_starts[test_rows],
+                ),
+            )[:, 1]
             if hasattr(model, "predict_proba")
             else None
         )
