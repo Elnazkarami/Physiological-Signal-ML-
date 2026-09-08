@@ -29,7 +29,8 @@ Two datasets, two tasks, one pipeline:
 | `neural` — sleep EEG: spectra, Hjorth parameters, quality control, 48 features | 508 |
 | `io` — WESAD read from its archive, and a from-scratch EDF/EDF+ reader | 770 |
 | `evaluation` — splits, metrics, ablation, coverage, paired comparison, personalisation | 1,479 |
-| `cdfs`, `models` — the round trip, and five classical models | 696 |
+| `models` — five classical models, and a recurrent one that reads a night as a sequence | 604 |
+| `cdfs` — the round trip with the provenance engine | 394 |
 | **tests** | **4,456 lines, 350 tests** |
 
 **The provenance core has no runtime dependencies at all** — no NumPy, no SciPy — and CI
@@ -149,11 +150,20 @@ The core package has no runtime dependencies and CI asserts it on every commit.
 
 ## Not built
 
-Sequence models, which is where sleep staging gains most — a scorer reads the epochs
-before and after, and every model here sees one epoch alone · frequency-domain heart-rate
-variability, which needs windows longer than the minute these are · deep architectures,
-which the ablations do not yet justify · the Sleep Telemetry cohort, and the 58 Sleep
-Cassette subjects not downloaded here.
+**Frequency-domain heart-rate variability.** The low-frequency band starts at 0.04 Hz and
+needs windows of several minutes to resolve; these are one minute long. The chest
+electrocardiogram at 700 Hz would support it, but WESAD's condition blocks run five to
+twenty minutes, so re-windowing at five would leave two or three stress windows per
+participant — around forty across the cohort. The limit is the protocol, not the code.
+
+**The Sleep Telemetry cohort.** 44 recordings from 22 participants, in the same format
+with the same channels. It is the obvious external-validation set — train on Sleep
+Cassette, test on a different protocol — and it is a straightforward addition rather than
+a hard one.
+
+**Anything beyond one modality at a time in the neural pipeline.** The sleep model reads
+EEG, EOG and EMG as columns of one table; it does not learn a separate representation per
+channel and combine them.
 
 
 ## Non-goals for version 1
