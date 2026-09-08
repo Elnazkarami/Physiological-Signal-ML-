@@ -230,3 +230,28 @@ def test_a_build_where_nothing_is_readable_still_raises(tmp_path):
 
     with pytest.raises(ValueError, match="no scored epoch"):
         build_sleep(tmp_path, margin_minutes=5.0)
+
+
+# ── verifying a directory of recordings ─────────────────────────────────────
+
+
+def test_a_truncated_file_is_not_a_usable_night(tmp_path):
+    """Counting files and checking sizes both miss this: a half-downloaded
+    night is megabytes of perfectly good bytes with a header that says how
+    many more there should have been."""
+    from physioml.io.edf import EDF, EDFError
+
+    night(tmp_path, "00", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    path = tmp_path / "SC4001E0-PSG.edf"
+    whole = path.read_bytes()
+    path.write_bytes(whole[: len(whole) // 2])
+
+    assert path.stat().st_size > 0, "it is not empty, which is the trap"
+    with pytest.raises(EDFError, match="truncated"):
+        EDF(path)
+
+
+def test_a_recording_without_its_scoring_is_not_a_usable_night(tmp_path):
+    night(tmp_path, "00", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    (tmp_path / "SC4001EC-Hypnogram.edf").unlink()
+    assert SleepEDF(tmp_path).nights() == []

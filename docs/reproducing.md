@@ -28,6 +28,18 @@ curl -s https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/ \
       https://physionet.org/files/sleep-edfx/1.0.0/sleep-cassette/{}
 ```
 
+Then check what actually arrived:
+
+```bash
+python scripts/verify_sleep_edf.py ~/Downloads/sleep-edf --repair-list missing.txt
+```
+
+This is worth doing rather than trusting the file count. A download interrupted by the
+rate limit leaves a file that exists and has a plausible size and is not a recording, so
+neither counting files nor checking sizes finds it — the header has to be parsed and the
+records it declares compared against the records present. `--repair-list` writes the
+names that need re-fetching, ready to feed back to `curl`.
+
 ## Recording what produced a number
 
 Any evaluation can write a manifest:
