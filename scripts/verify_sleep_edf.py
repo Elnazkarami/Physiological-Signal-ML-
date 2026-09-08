@@ -18,15 +18,16 @@ curl.
 from __future__ import annotations
 
 import argparse
-import re
 from collections import Counter
 from pathlib import Path
 
 from physioml.io.edf import EDF, EDFError
+from physioml.io.sleep_edf import _NAME as NAME
+from physioml.io.sleep_edf import COHORTS
 
-NAME = re.compile(
-    r"^SC4(?P<subject>\d\d)(?P<night>\d)[A-Z0-9]{2}-(?P<kind>PSG|Hypnogram)\.edf$"
-)
+# The filename pattern is the reader's own, not a copy of it. A copy is how
+# this script came to recognise one cohort while the library recognised two,
+# and reported a finished download as missing twenty-two participants.
 
 
 def main() -> None:
@@ -42,13 +43,13 @@ def main() -> None:
 
     whole: dict[tuple[str, str], dict[str, Path]] = {}
     broken: list[tuple[Path, str]] = []
-    for path in sorted(directory.glob("SC4*.edf")):
+    for path in sorted(directory.glob("*.edf")):
         found = NAME.match(path.name)
         if found is None:
             continue
         if args.night and int(found["night"]) != args.night:
             continue
-        key = (found["subject"], found["night"])
+        key = (f"{COHORTS[found['cohort']]}{found['subject']}", found["night"])
         try:
             EDF(path)
         except EDFError as exc:
@@ -60,6 +61,7 @@ def main() -> None:
     unpaired = {k: v for k, v in whole.items() if k not in paired}
 
     by_night = Counter(night for _, night in paired)
+    by_cohort = Counter(subject[:2] for subject in {s for s, _ in paired})
     print(f"{directory}")
     print(f"  usable nights:   {len(paired)}", end="")
     if by_night:
@@ -68,13 +70,17 @@ def main() -> None:
         )
     else:
         print()
-    print(f"  subjects:        {len({s for s, _ in paired})}")
+    print(f"  subjects:        {len({s for s, _ in paired})}", end="")
+    if by_cohort:
+        print("  (" + ", ".join(f"{c}: {n}" for c, n in sorted(by_cohort.items())) + ")")
+    else:
+        print()
 
     if unpaired:
         print(f"  missing a pair:  {len(unpaired)}")
         for (subject, night), found in sorted(unpaired.items())[:10]:
             absent = {"PSG", "Hypnogram"} - set(found)
-            print(f"      SC4{subject}{night}: no {', '.join(sorted(absent))}")
+            print(f"      {subject} night {night}: no {', '.join(sorted(absent))}")
     if broken:
         print(f"  unreadable:      {len(broken)}")
         for path, why in broken[:10]:
