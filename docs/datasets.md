@@ -36,10 +36,27 @@ lost stays countable.
 
 ### Sleep-EDF Expanded — a scalp montage, asleep
 
-76 subjects of the Sleep Cassette cohort, one night each, in European Data Format. Read
-without a toolbox: EDF is a header of fixed-width ASCII fields followed by interleaved
-16-bit records, and each file is memory-mapped so that asking for one channel touches only
-its own columns rather than loading a night of polysomnography to reach it.
+Two cohorts, in European Data Format, read without a toolbox: EDF is a header of
+fixed-width ASCII fields followed by interleaved 16-bit records, and each file is
+memory-mapped so that asking for one channel touches only its own columns rather than
+loading a night of polysomnography to reach it.
+
+| cohort | participants | protocol |
+| --- | ---: | --- |
+| **Sleep Cassette** | 76, one night each | healthy participants recorded at home |
+| **Sleep Telemetry** | 22, two nights each | a study of temazepam against placebo |
+
+The second exists to be held out. Everything reported here is fitted on Sleep Cassette, so
+Telemetry is an external-validation set — a different protocol, different participants,
+and in part a medicated population — rather than more of the same data.
+
+**Subject identifiers carry their cohort**, because the numbering repeats: Sleep Cassette
+01 and Sleep Telemetry 01 share a number and nothing else. Merged under one identifier a
+model would train on somebody it was about to be scored on, which is the leak
+leave-one-subject-out exists to prevent, arriving through a naming collision rather than a
+coding error.
+
+The counts below are the Sleep Cassette cohort.
 
 | | epochs | share |
 | --- | ---: | ---: |

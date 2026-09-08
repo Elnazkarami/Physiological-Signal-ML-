@@ -18,7 +18,8 @@ transformations, features, model version, and source observations that produced 
 Two datasets, two tasks, one pipeline:
 
 - **WESAD** — wrist and chest sensors, stress against baseline, 15 participants.
-- **Sleep-EDF Expanded** — a scalp montage, five-stage sleep scoring, 76 participants.
+- **Sleep-EDF Expanded** — a scalp montage, five-stage sleep scoring, 76 participants,
+  with a second cohort of 22 held out for external validation.
 
 ## What is in it
 
@@ -155,11 +156,6 @@ needs windows of several minutes to resolve; these are one minute long. The ches
 electrocardiogram at 700 Hz would support it, but WESAD's condition blocks run five to
 twenty minutes, so re-windowing at five would leave two or three stress windows per
 participant — around forty across the cohort. The limit is the protocol, not the code.
-
-**The Sleep Telemetry cohort.** 44 recordings from 22 participants, in the same format
-with the same channels. It is the obvious external-validation set — train on Sleep
-Cassette, test on a different protocol — and it is a straightforward addition rather than
-a hard one.
 
 **Anything beyond one modality at a time in the neural pipeline.** The sleep model reads
 EEG, EOG and EMG as columns of one table; it does not learn a separate representation per
