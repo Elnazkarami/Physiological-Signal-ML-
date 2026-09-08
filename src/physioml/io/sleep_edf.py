@@ -63,7 +63,25 @@ MODALITIES: dict[str, Modality] = {
     "Temp rectal": Modality.TEMP,
 }
 
-_NAME = re.compile(r"^SC4(?P<subject>\d\d)(?P<night>\d)")
+#: Both cohorts of Sleep-EDF Expanded. Sleep Cassette is ``SC4ssn``, healthy
+#: participants recorded at home; Sleep Telemetry is ``ST7ssn``, a study of
+#: temazepam against placebo. Same format, same channels, different protocol,
+#: which is what makes the second one an external-validation set for a model
+#: fitted on the first.
+_NAME = re.compile(
+    r"^(?P<cohort>SC4|ST7)(?P<subject>\d\d)(?P<night>\d)[A-Z0-9]{2}-"
+    r"(?P<kind>PSG|Hypnogram)\.edf$"
+)
+
+COHORTS = {"SC4": "SC", "ST7": "ST"}
+"""File prefix to the label a subject identifier carries.
+
+**Subject numbers repeat across the two cohorts and are different people.**
+Sleep Cassette 01 and Sleep Telemetry 01 share nothing but a number, so an
+identifier here is prefixed with its cohort. Without that, joining the two
+tables would put two participants under one identifier, and leave-one-subject-
+out would train on somebody it was about to be scored on -- the exact leak the
+whole evaluation is built to prevent, arriving through a naming collision."""
 
 
 class SleepEDFError(RuntimeError):
@@ -156,14 +174,14 @@ class SleepEDF:
     def _pairs(self) -> dict[tuple[str, int], tuple[Path, Path]]:
         psg: dict[tuple[str, int], Path] = {}
         hypnograms: dict[tuple[str, int], Path] = {}
-        for path in sorted(self.directory.glob("SC4*.edf")):
+        for path in sorted(self.directory.glob("*.edf")):
             found = _NAME.match(path.name)
             if found is None:
                 continue
-            key = (found["subject"], int(found["night"]))
-            if path.name.endswith("-PSG.edf"):
+            key = (f"{COHORTS[found['cohort']]}{found['subject']}", int(found["night"]))
+            if found["kind"] == "PSG":
                 psg[key] = path
-            elif path.name.endswith("-Hypnogram.edf"):
+            else:
                 hypnograms[key] = path
         # A recording without its scoring is unusable, and a scoring without
         # its recording has nothing to score; neither is an error worth

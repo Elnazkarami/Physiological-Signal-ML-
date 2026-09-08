@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from itertools import takewhile
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +42,19 @@ from physioml.peripheral.features import (
 )
 from physioml.peripheral.qc import DEFAULT_POLICY, QCPolicy, assess
 from physioml.peripheral.windowing import epochs
+
+
+def _subject_key(subject: str) -> tuple[str, int, str]:
+    """Sort key for a participant identifier: prefix first, then its number.
+
+    These take three shapes -- ``S2`` from WESAD, ``SC01`` and ``ST01`` from
+    the two Sleep-EDF cohorts. Plain string ordering interleaves the cohorts
+    and puts S10 before S2; parsing the whole identifier as a number fails on
+    any that carries a letter in the middle.
+    """
+    digits = "".join(takewhile(str.isdigit, reversed(subject)))[::-1]
+    prefix = subject[: len(subject) - len(digits)]
+    return (prefix, int(digits) if digits else 0, subject)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,7 +91,8 @@ class FeatureTable:
 
     @property
     def subject_ids(self) -> list[str]:
-        return sorted(set(self.subjects.tolist()), key=lambda s: int(s.lstrip("S")))
+        """Every participant, ordered so that S9 comes before S10."""
+        return sorted(set(self.subjects.tolist()), key=_subject_key)
 
     def binary(self, positive: str = "stress") -> np.ndarray:
         """Labels as one-vs-rest, for the task WESAD is usually posed as."""
