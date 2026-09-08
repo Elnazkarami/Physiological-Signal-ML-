@@ -40,6 +40,17 @@ neither counting files nor checking sizes finds it — the header has to be pars
 records it declares compared against the records present. `--repair-list` writes the
 names that need re-fetching, ready to feed back to `curl`.
 
+## Fitting on one cohort and scoring another
+
+```bash
+python scripts/build_sleep_features.py ~/Downloads/sleep-edf sleep_all.npz
+python scripts/external_validation.py sleep_all.npz --train SC --test ST
+```
+
+It reports the model held out within Sleep Cassette beside the same model scored on Sleep
+Telemetry, because the second number only means something next to the first: the gap
+between them is what a change of protocol costs.
+
 ## Recording what produced a number
 
 Any evaluation can write a manifest:

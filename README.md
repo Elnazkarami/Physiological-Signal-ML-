@@ -121,8 +121,10 @@ remain. The ablations identify the shortcuts rather than eliminating them.
 comparisons have intervals wide enough that they establish nothing, and those are reported
 as such rather than as small effects.
 
-**Nothing is validated outside these two datasets** — no second session, no different
-protocol, no held-out cohort. Sleep staging is scored around a sleep interval located by
+**External validation is a held-out cohort, not a held-out dataset.** Sleep results are
+fitted on Sleep Cassette and scored on Sleep Telemetry, a different protocol with
+different participants; the stress results have no equivalent, and are validated only
+across participants within WESAD. Sleep staging is scored around a sleep interval located by
 the reference annotation, which is a benchmark scope rather than a demonstration of finding
 sleep in an unrestricted recording.
 

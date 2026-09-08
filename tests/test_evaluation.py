@@ -777,3 +777,47 @@ def test_the_same_columns_in_a_different_order_are_refused():
     reordered = first.select(["b", "a"])
     with pytest.raises(ValueError, match="same order"):
         first.concat(reordered)
+
+
+# ── holding out a whole cohort ──────────────────────────────────────────────
+
+
+def test_a_cohort_split_fits_one_dataset_and_scores_another():
+    """Leave-one-subject-out asks whether a model transfers to a new person.
+    This asks whether it transfers to a new protocol."""
+    from physioml.evaluation.splits import held_out_cohort_split
+
+    subjects = ["SC01", "SC02", "SC03", "ST01", "ST02"]
+    split = held_out_cohort_split(subjects, train_prefix="SC", test_prefix="ST")
+    assert split.train_subjects == ("SC01", "SC02", "SC03")
+    assert split.test_subjects == ("ST01", "ST02")
+    assert not set(split.train_subjects) & set(split.test_subjects)
+
+
+def test_a_cohort_split_refuses_a_prefix_that_matches_nobody():
+    from physioml.evaluation.splits import held_out_cohort_split
+
+    with pytest.raises(ValueError, match="no participant starts with 'XX'"):
+        held_out_cohort_split(["SC01"], train_prefix="XX", test_prefix="SC")
+    with pytest.raises(ValueError, match="no participant starts with 'XX'"):
+        held_out_cohort_split(["SC01"], train_prefix="SC", test_prefix="XX")
+
+
+def test_a_cohort_split_refuses_overlapping_prefixes():
+    """'S' would match both cohorts, putting participants on both sides."""
+    from physioml.evaluation.splits import held_out_cohort_split
+
+    with pytest.raises(ValueError, match="cannot be in"):
+        held_out_cohort_split(["SC01", "ST01"], train_prefix="S", test_prefix="ST")
+
+
+def test_a_cohort_split_masks_the_rows_it_should():
+    from physioml.evaluation.splits import held_out_cohort_split
+
+    made = table()
+    extra = replace(made, subjects=np.array([f"ST{s[1:]}" for s in made.subjects]))
+    joined = made.concat(extra)
+    split = held_out_cohort_split(joined.subject_ids, train_prefix="S2", test_prefix="ST")
+    train, test = split.mask(joined.subjects)
+    assert train.size and test.size
+    assert not set(joined.subjects[train]) & set(joined.subjects[test])

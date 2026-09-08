@@ -18,7 +18,7 @@ that violates that, and a test asserts it across every strategy.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -121,3 +121,38 @@ def held_out_cohort(
 def _numeric(subject_id: str) -> int:
     digits = "".join(c for c in subject_id if c.isdigit())
     return int(digits) if digits else 0
+
+
+def held_out_cohort_split(
+    subjects: Sequence[str], *, train_prefix: str, test_prefix: str
+) -> Split:
+    """Fit on one cohort, score another.
+
+    Every other split here holds out participants from one dataset, which
+    answers "does this transfer to a new person". This answers a harder
+    question -- "does it transfer to a new protocol" -- and it is the only one
+    of the two that a deployment faces.
+
+    Participants are identified by a prefix rather than by a list, because the
+    membership is a property of the identifier and writing it out twice is a
+    chance to get it wrong.
+    """
+    train = tuple(sorted(s for s in subjects if s.startswith(train_prefix)))
+    test = tuple(sorted(s for s in subjects if s.startswith(test_prefix)))
+    if not train:
+        raise ValueError(f"no participant starts with {train_prefix!r} to train on")
+    if not test:
+        raise ValueError(f"no participant starts with {test_prefix!r} to score")
+    overlap = set(train) & set(test)
+    if overlap:
+        raise ValueError(
+            f"{sorted(overlap)} match both prefixes; a participant cannot be in "
+            "the cohort being fitted and the one being held out"
+        )
+    return Split(
+        train_subjects=train,
+        test_subjects=test,
+        strategy=f"held_out_cohort:{train_prefix}->{test_prefix}",
+        fold=0,
+        seed=None,
+    )
