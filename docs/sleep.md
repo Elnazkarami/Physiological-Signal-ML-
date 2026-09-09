@@ -94,9 +94,45 @@ measure it. Participants are held out whole, so a row's neighbours always belong
 same person — an epoch at the edge of a recording is padded with itself rather than with
 somebody else's sleep.
 
-There is also a [recurrent classifier](../src/physioml/models/sequence.py) that reads a
-whole night as a sequence rather than taking neighbours as columns. It is built and tested;
-its result on this cohort is not yet reported.
+### Columns or a sequence: the same agreement, a different model
+
+A [recurrent classifier](../src/physioml/models/sequence.py) reads a whole night as one
+sequence rather than taking neighbours as columns. All three fitted on identical grouped
+five-folds, so the comparison is not affected by the split:
+
+| | κ | accuracy | bal. accuracy | fit time |
+| --- | ---: | ---: | ---: | ---: |
+| one epoch alone | 0.675 ±0.034 | 0.765 | 0.697 | 116 s |
+| neighbours as columns | **0.708 ±0.035** | **0.790** | 0.724 | 227 s |
+| recurrent, whole night | **0.708 ±0.036** | 0.782 | **0.785** | 850 s |
+
+**On agreement they are indistinguishable.** Head to head the recurrent model is 0.003
+lower with an interval of [−0.024, +0.017] and 37 of 76 participants improving — as clean
+a null as this project has produced. Both beat the single-epoch model by about the same
+margin: +0.035 [+0.027, +0.042] for the columns, +0.032 [+0.013, +0.050] for the network.
+
+**On the stages, they are not the same model at all.**
+
+| recall | N1 | N2 | N3 | REM | wake |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| one epoch alone | 0.320 | 0.817 | 0.811 | 0.646 | 0.891 |
+| neighbours as columns | 0.380 | **0.845** | 0.801 | 0.696 | **0.899** |
+| recurrent, whole night | **0.614** | 0.724 | **0.925** | **0.793** | 0.866 |
+
+**The recurrent model finds N1 nearly twice as often as the context columns** — 0.614
+against 0.380, on the stage every automatic scorer fails and human scorers agree on least.
+It is better on N3 and REM too, and pays for it on N2 and wake, the two commonest stages.
+Balanced accuracy, which weights the stages equally, reads 0.785 against 0.724; κ, which
+accounts for how often each occurs, cannot see the trade at all.
+
+So which is better depends on what the model is for. **For overall agreement with a
+scorer, the columns win**: same κ, better accuracy, a third of the compute. **For finding
+the transitions, the network wins clearly**, and by more than any feature change here
+achieved.
+
+Fit time is part of the answer. 850 seconds against 227 for the same agreement — and
+leave-one-subject-out was abandoned for the recurrent model after fifteen CPU-hours
+without finishing, which is why this table is five folds rather than seventy-six.
 
 ## Carried to a different protocol
 

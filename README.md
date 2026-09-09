@@ -97,6 +97,12 @@ and partly a medicated population — agreement falls by **0.019 κ**, from 0.65
 With neighbouring epochs it reaches **0.680 on the held-out cohort, above the plain model's
 0.656 within its own.**
 
+**A recurrent model buys nothing on agreement and a great deal on the rare stages.**
+Reading a whole night as a sequence gives the same κ as handing a random forest its
+neighbours as columns — 0.708 either way, head to head [−0.024, +0.017] — while finding
+**N1 nearly twice as often, 0.614 against 0.380**, at four times the compute. Which is
+better depends on whether you want agreement with a scorer or the transitions themselves.
+
 **Reading the neighbouring epochs is worth more than any model choice here.** A scorer
 judges an epoch partly by what surrounds it; handing that context to the same random forest
 raises κ from 0.656 to **0.693, improving 68 of 76 participants** — and lifts N1, the
