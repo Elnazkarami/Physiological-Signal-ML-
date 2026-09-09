@@ -98,6 +98,47 @@ There is also a [recurrent classifier](../src/physioml/models/sequence.py) that 
 whole night as a sequence rather than taking neighbours as columns. It is built and tested;
 its result on this cohort is not yet reported.
 
+## Carried to a different protocol
+
+Everything above is leave-one-subject-out within Sleep Cassette, which asks whether a model
+transfers to a new person. Sleep Telemetry asks the harder question: it is a different
+protocol, different participants, and partly a medicated population — 22 people whose
+recordings hold a quarter of Cassette's wake and more than twice its slow-wave sleep.
+
+Fitted on all 76 Cassette participants, scored on all 22 Telemetry participants:
+
+| random forest | κ | accuracy | bal. accuracy |
+| --- | ---: | ---: | ---: |
+| within Sleep Cassette (76 folds) | 0.656 | 0.762 | 0.672 |
+| **→ Sleep Telemetry** | **0.637** | 0.742 | 0.692 |
+| → Sleep Telemetry, with neighbours | **0.680** | 0.773 | 0.721 |
+
+**Agreement falls by 0.019 κ crossing to a different protocol.** For a model that has never
+seen a Telemetry recording, a medicated participant, or that recording setup, that is a
+small loss, and it is the strongest evidence here that these features describe sleep rather
+than describing this dataset.
+
+**And the context model scored on the held-out cohort (0.680) beats the plain model scored
+within its own (0.656).** Reading the neighbouring epochs is worth more than staying in the
+cohort you were fitted on.
+
+Two things stop this being better than it is.
+
+**Balanced accuracy rises, and that is mostly bookkeeping.** It goes 0.672 → 0.692 because
+Telemetry holds 16% N3 against Cassette's 7%, and N3 is a stage this model does well on
+when there is enough of it to learn — recall 0.864 on Telemetry against 0.634 within
+Cassette. A per-class average rewards a cohort whose classes are more evenly spread. κ,
+which corrects for the marginal distributions, is the number to read across cohorts.
+
+**This is one split, so there is no interval across folds.** What can be reported is the
+spread across the 22 held-out participants: κ mean 0.626, sd 0.100, from 0.379 for ST18 to
+0.759. The weakest three (ST18, ST24, ST21) are weak under both feature sets, so they are a
+property of those recordings rather than of the model.
+
+N1 remains the weak stage and does not transfer: 0.285 plain, 0.267 with context, against
+0.319 within Cassette. Whatever the neighbours contribute to N1 inside a cohort does not
+survive the crossing.
+
 ### The features, in full
 
 Twenty per electroencephalogram derivation, five from the electro-oculogram, three from

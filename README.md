@@ -93,6 +93,12 @@ not a better model.
 against 0.656 for all four channels across 76 participants. Chin electromyography
 contributes nothing measurable: +0.000 with an interval of ±0.002.
 
+**The sleep model carries to a different protocol.** Fitted on 76 Sleep Cassette
+participants and scored on 22 Sleep Telemetry participants — a different recording setup
+and partly a medicated population — agreement falls by **0.019 κ**, from 0.656 to 0.637.
+With neighbouring epochs it reaches **0.680 on the held-out cohort, above the plain model's
+0.656 within its own.**
+
 **Reading the neighbouring epochs is worth more than any model choice here.** A scorer
 judges an epoch partly by what surrounds it; handing that context to the same random forest
 raises κ from 0.656 to **0.692, interval [+0.030, +0.044], improving 68 of 76
@@ -127,10 +133,11 @@ remain. The ablations identify the shortcuts rather than eliminating them.
 comparisons have intervals wide enough that they establish nothing, and those are reported
 as such rather than as small effects.
 
-**External validation is a held-out cohort, not a held-out dataset.** Sleep results are
-fitted on Sleep Cassette and scored on Sleep Telemetry, a different protocol with
-different participants; the stress results have no equivalent, and are validated only
-across participants within WESAD. Sleep staging is scored around a sleep interval located by
+**External validation exists for sleep and not for stress.** Sleep results are fitted on
+Sleep Cassette and scored on Sleep Telemetry — a different protocol, different
+participants — but that is still one dataset family, one recording tradition, and one
+scoring standard. The stress results have no equivalent and are validated only across
+participants within WESAD. Sleep staging is scored around a sleep interval located by
 the reference annotation, which is a benchmark scope rather than a demonstration of finding
 sleep in an unrestricted recording.
 
