@@ -71,6 +71,25 @@ CI installs the package without any scientific stack, asserts NumPy is absent,
 and runs the provenance tests against that. The same check runs locally with an
 import blocker, documented in [reproducing](reproducing.md).
 
+## Two numbers from the same model can differ legitimately
+
+Metrics here are computed one of two ways, and mixing them silently would be a way to make
+a result look better than it is.
+
+**Averaged over participants.** Each held-out person is scored, and the scores are
+averaged. This answers "how will this do for someone", which is the question a wearable
+faces, and it is what leave-one-subject-out reports throughout.
+
+**Pooled within a fold.** All the held-out rows are scored together. This answers "how many
+epochs did it get right", and it lets a participant with a thousand epochs of a stage
+outweigh one with fifteen.
+
+The gap is not small. Sleep staging reads κ 0.656 averaged over 76 participants and 0.675
+pooled over five folds of the same data; N3 recall reads 0.642 averaged and 0.811 pooled,
+because the participants with very little N3 are the ones the model scores worst on it.
+Neither is wrong. They answer different questions, and a comparison is only valid between
+numbers computed the same way on the same folds.
+
 ## Splits, leakage, and what is recorded
 
 No participant appears on both sides of a split, asserted across every split
