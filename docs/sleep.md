@@ -76,18 +76,18 @@ into 143 and closes a good part of that gap.
 
 | random forest | κ | accuracy | bal. accuracy | N1 recall |
 | --- | ---: | ---: | ---: | ---: |
-| one epoch alone | 0.656 ±0.123 | 0.762 | 0.673 | 0.319 |
-| **with its neighbours** | **0.692 ±0.128** | **0.789** | **0.704** | **0.407** |
+| one epoch alone | 0.656 ±0.122 | 0.762 | 0.672 | 0.309 |
+| **with its neighbours** | **0.693 ±0.127** | **0.789** | **0.707** | **0.405** |
 
 **+0.037 κ, 95% interval [+0.030, +0.044], improving 68 of 76 participants.** That is the
 most clearly established improvement in this project, and it is the one that was predicted
 in advance from what the model could not see rather than found by trying architectures.
 
-The gain lands where it was expected to. **N1 recall rises from 0.319 to 0.407** — a
+The gain lands where it was expected to. **N1 recall rises from 0.309 to 0.405** — a
 stage that is 11% of the epochs and was the worst-scored of the five. REM also improves,
-0.657 to 0.707, which fits: REM and N1 are the two stages a scorer distinguishes partly by
-what surrounds them. N3 does not move (0.634 to 0.626); slow-wave sleep looks like itself
-regardless of its neighbours.
+0.651 to 0.706, which fits: REM and N1 are the two stages a scorer distinguishes partly by
+what surrounds them. N3 does not move at all (0.642 either way); slow-wave sleep looks like
+itself regardless of its neighbours.
 
 Context is added as ordinary columns, so the same classical models and the same evaluation
 measure it. Participants are held out whole, so a row's neighbours always belong to the

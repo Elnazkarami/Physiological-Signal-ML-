@@ -58,14 +58,12 @@ a format neither may have got right.
 | model | bal. accuracy | Cohen's κ | accuracy | worst subject |
 | --- | ---: | ---: | ---: | ---: |
 | majority class | 0.206 ±0.016 | 0.000 | 0.377 | 0.200 |
-| logistic regression | **0.695 ±0.111** | 0.607 ±0.135 | 0.721 | 0.227 |
-| random forest | 0.674 ±0.102 | **0.656 ±0.124** | 0.765 | 0.310 |
+| random forest | 0.672 ±0.102 | 0.656 ±0.122 | 0.762 | 0.323 |
+| **random forest, with neighbouring epochs** | **0.707 ±0.127** | **0.693** | **0.789** | 0.325 |
 
-κ 0.656 sits at the lower end of the published range for feature-based staging under
-subject-wise validation — the check that matters, since the pipeline is new and the task
-is not. **On the first 20 subjects it read 0.710**; the full cohort took it down, and took
-the worst participant from 0.534 to 0.310. Twenty was not a small sample of this dataset,
-it was an unrepresentative one: wake is 17% of those subjects and 34% of all of them.
+κ 0.693 sits within the published range for feature-based staging under subject-wise
+validation — the check that matters, since the pipeline is new and the task is not. Both
+rows are 76 participants, one night each, held out one at a time.
 
 ## What the ablations show
 
@@ -101,9 +99,8 @@ With neighbouring epochs it reaches **0.680 on the held-out cohort, above the pl
 
 **Reading the neighbouring epochs is worth more than any model choice here.** A scorer
 judges an epoch partly by what surrounds it; handing that context to the same random forest
-raises κ from 0.656 to **0.692, interval [+0.030, +0.044], improving 68 of 76
-participants** — and lifts N1, the transition stage every scorer struggles with, from 0.319
-recall to 0.407.
+raises κ from 0.656 to **0.693, improving 68 of 76 participants** — and lifts N1, the
+transition stage every scorer struggles with, from 0.309 recall to 0.405.
 
 → **[How the results were validated](docs/validation.md)** — the checks every number here
 passed, and why each one is necessary on this kind of data.
