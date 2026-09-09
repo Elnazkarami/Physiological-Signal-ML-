@@ -25,7 +25,7 @@ of a subject are one subject** — treating them as two people would put the sam
 both sides of every split, the leak the whole evaluation exists to prevent, arriving
 through the file naming.
 
-101,342 epochs, 48 features, five stages — N2 36%, W 33%, REM 13%, N1 11%, N3 7%.
+98,023 epochs, 48 features, five stages — N2 36%, W 34%, REM 13%, N1 11%, N3 7%.
 
 The full Sleep Cassette cohort. Class balance matters for reading the numbers below:
 wake is a third of it and N3 under a tenth, and a subset of twenty subjects has a

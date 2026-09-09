@@ -50,6 +50,17 @@ The second exists to be held out. Everything reported here is fitted on Sleep Ca
 Telemetry is an external-validation set — a different protocol, different participants,
 and in part a medicated population — rather than more of the same data.
 
+The two do not look alike, which is the point of holding one out:
+
+| | N1 | N2 | N3 | REM | wake | epochs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Sleep Cassette | 11% | 36% | 7% | 13% | **34%** | 98,023 |
+| Sleep Telemetry | 8% | 47% | **16%** | 20% | **9%** | 20,649 |
+
+Telemetry has a quarter of the wake and more than twice the slow-wave sleep. A model
+carried across is therefore facing a shift in what the stages *are made of* and a shift in
+how often each occurs, and a fall in agreement will be some of each.
+
 **Subject identifiers carry their cohort**, because the numbering repeats: Sleep Cassette
 01 and Sleep Telemetry 01 share a number and nothing else. Merged under one identifier a
 model would train on somebody it was about to be scored on, which is the leak
@@ -60,18 +71,17 @@ The counts below are the Sleep Cassette cohort.
 
 | | epochs | share |
 | --- | ---: | ---: |
-| N2 | 36,735 | 36.2% |
-| wake | 33,534 | 33.1% |
-| REM | 13,062 | 12.9% |
-| N1 | 11,041 | 10.9% |
-| N3 | 6,970 | 6.9% |
-| **scored and kept** | **101,342** | **42.3%** |
-| trimmed | 125,985 | recorder running before bed and after waking |
-| unscored | 12,404 | movement time and epochs nobody scored |
+| N2 | 35,300 | 36.0% |
+| wake | 33,067 | 33.7% |
+| REM | 12,492 | 12.7% |
+| N1 | 10,706 | 10.9% |
+| N3 | 6,458 | 6.6% |
+| **scored and kept** | **98,023** | one first night per participant |
 
-The denominator is 239,731 epochs across the seventy-six nights: 101,342 kept, 125,985
-trimmed, 12,404 unscored. Of the 227,327 that carry a score, 44.6% are kept. A further 107
-rows are dropped for a missing feature rather than imputed.
+**One night per participant, chosen by file name.** An earlier count here was 101,342,
+which included second nights for three participants who happened to have one downloaded —
+a cohort where three people are weighted twice and seventy-three once. The protocol this
+page describes says one night each, so the table now is that.
 
 Every count here comes from a directory `scripts/verify_sleep_edf.py` reports as complete
 and paired. That check is not ceremonial: an earlier build of this cohort silently ran on
