@@ -93,6 +93,12 @@ not a better model.
 against 0.656 for all four channels across 76 participants. Chin electromyography
 contributes nothing measurable: +0.000 with an interval of ±0.002.
 
+**Reading the neighbouring epochs is worth more than any model choice here.** A scorer
+judges an epoch partly by what surrounds it; handing that context to the same random forest
+raises κ from 0.656 to **0.692, interval [+0.030, +0.044], improving 68 of 76
+participants** — and lifts N1, the transition stage every scorer struggles with, from 0.319
+recall to 0.407.
+
 → **[How the results were validated](docs/validation.md)** — the checks every number here
 passed, and why each one is necessary on this kind of data.
 

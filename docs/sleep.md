@@ -66,6 +66,38 @@ toward its lower end — which is the check that matters here: the pipeline is n
 is not, and a number far outside that range would mean something was wrong rather than
 something was found.
 
+### Reading the epochs either side
+
+Every model above scores one epoch alone. A scorer does not: they read what came before and
+after, and N1 is defined almost entirely by being a transition between the two things
+around it. Handing each row its neighbours — the spectral balance, eye movement and muscle
+tone from two epochs back and two forward, plus a centred rolling mean — turns 48 columns
+into 143 and closes a good part of that gap.
+
+| random forest | κ | accuracy | bal. accuracy | N1 recall |
+| --- | ---: | ---: | ---: | ---: |
+| one epoch alone | 0.656 ±0.123 | 0.762 | 0.673 | 0.319 |
+| **with its neighbours** | **0.692 ±0.128** | **0.789** | **0.704** | **0.407** |
+
+**+0.037 κ, 95% interval [+0.030, +0.044], improving 68 of 76 participants.** That is the
+most clearly established improvement in this project, and it is the one that was predicted
+in advance from what the model could not see rather than found by trying architectures.
+
+The gain lands where it was expected to. **N1 recall rises from 0.319 to 0.407** — a
+stage that is 11% of the epochs and was the worst-scored of the five. REM also improves,
+0.657 to 0.707, which fits: REM and N1 are the two stages a scorer distinguishes partly by
+what surrounds them. N3 does not move (0.634 to 0.626); slow-wave sleep looks like itself
+regardless of its neighbours.
+
+Context is added as ordinary columns, so the same classical models and the same evaluation
+measure it. Participants are held out whole, so a row's neighbours always belong to the
+same person — an epoch at the edge of a recording is padded with itself rather than with
+somebody else's sleep.
+
+There is also a [recurrent classifier](../src/physioml/models/sequence.py) that reads a
+whole night as a sequence rather than taking neighbours as columns. It is built and tested;
+its result on this cohort is not yet reported.
+
 ### The features, in full
 
 Twenty per electroencephalogram derivation, five from the electro-oculogram, three from
