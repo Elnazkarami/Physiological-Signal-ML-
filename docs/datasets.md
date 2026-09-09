@@ -60,17 +60,23 @@ The counts below are the Sleep Cassette cohort.
 
 | | epochs | share |
 | --- | ---: | ---: |
-| N2 | 34,534 | 35.9% |
-| wake | 32,442 | 33.7% |
-| REM | 12,185 | 12.7% |
-| N1 | 10,518 | 10.9% |
-| N3 | 6,458 | 6.7% |
-| **scored and kept** | **96,137** | **42.0%** |
-| trimmed | 120,669 | recorder running before bed and after waking |
-| unscored | 12,196 | movement time and epochs nobody scored |
+| N2 | 36,735 | 36.2% |
+| wake | 33,534 | 33.1% |
+| REM | 13,062 | 12.9% |
+| N1 | 11,041 | 10.9% |
+| N3 | 6,970 | 6.9% |
+| **scored and kept** | **101,342** | **42.3%** |
+| trimmed | 125,985 | recorder running before bed and after waking |
+| unscored | 12,404 | movement time and epochs nobody scored |
 
-The denominator is 229,002 epochs across the seventy-six nights: 96,137 kept, 120,669
-trimmed, 12,196 unscored. Of the 216,806 that carry a score, 44.3% are kept.
+The denominator is 239,731 epochs across the seventy-six nights: 101,342 kept, 125,985
+trimmed, 12,404 unscored. Of the 227,327 that carry a score, 44.6% are kept. A further 107
+rows are dropped for a missing feature rather than imputed.
+
+Every count here comes from a directory `scripts/verify_sleep_edf.py` reports as complete
+and paired. That check is not ceremonial: an earlier build of this cohort silently ran on
+70 of the 76 participants, because six recordings were truncated downloads that still had
+plausible file sizes.
 
 30-second epochs, because that is what the scorer used. Consecutive rows share no signal,
 which is the one thing that is *easier* here than on WESAD.

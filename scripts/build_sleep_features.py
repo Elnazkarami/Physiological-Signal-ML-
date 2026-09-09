@@ -23,6 +23,14 @@ def main() -> None:
     parser.add_argument("output", nargs="?", default="sleep_features.npz")
     parser.add_argument("--subjects", nargs="*", help="limit to these subject ids")
     parser.add_argument(
+        "--nights",
+        type=int,
+        nargs="*",
+        default=[1, 2],
+        choices=(1, 2),
+        help="which nights to include; one night each keeps cohorts comparable",
+    )
+    parser.add_argument(
         "--margin",
         type=float,
         default=30.0,
@@ -34,6 +42,7 @@ def main() -> None:
     table = build_sleep(
         args.directory,
         subjects=args.subjects,
+        nights=tuple(args.nights),
         margin_minutes=args.margin,
         progress=True,
     )
