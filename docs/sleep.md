@@ -162,7 +162,7 @@ Two things stop this being better than it is.
 
 **Balanced accuracy rises, and that is mostly bookkeeping.** It goes 0.672 → 0.692 because
 Telemetry holds 16% N3 against Cassette's 7%, and N3 is a stage this model does well on
-when there is enough of it to learn — recall 0.864 on Telemetry against 0.634 within
+when there is enough of it to learn — recall 0.864 on Telemetry against 0.642 within
 Cassette. A per-class average rewards a cohort whose classes are more evenly spread. κ,
 which corrects for the marginal distributions, is the number to read across cohorts.
 
