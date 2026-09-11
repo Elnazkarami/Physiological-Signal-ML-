@@ -120,3 +120,18 @@ def test_the_configuration_is_recorded_in_full():
     found = SequenceConfig().as_dict()
     for key in ("hidden", "layers", "bidirectional", "seed", "version"):
         assert key in found
+
+
+def test_a_dropped_epoch_starts_a_new_sequence():
+    """Splitting only on a large gap treats a missing epoch as uninterrupted
+    sleep, which is exactly the discontinuity a recurrent model reads through."""
+    X, y, groups, order = sequences(per_subject=20)
+    with_gap = order.copy()
+    # Remove the 30 s step between rows 9 and 10 of S1 by pushing the rest on.
+    with_gap[(groups == "S1") & (order >= 300.0)] += 60.0
+    model = gru(epochs=1, hidden=8, layers=1)
+    model.fit(X, y, groups=groups, order=with_gap)
+    pieces = model._nights(
+        X, y, groups, with_gap, {c: i for i, c in enumerate(model.classes_)}
+    )
+    assert len(pieces) == len(SUBJECTS) + 1, "S1 should be split in two"

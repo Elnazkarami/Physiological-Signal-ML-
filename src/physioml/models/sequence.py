@@ -31,6 +31,10 @@ from typing import Any
 
 import numpy as np
 
+EPOCH_SECONDS = 30.0
+"""What a sequence step is. A pair of rows further apart than this is not two
+consecutive epochs, whatever the gap between them happens to be."""
+
 
 @dataclass
 class SequenceConfig:
@@ -203,7 +207,11 @@ class SequenceClassifier:
             # than an epoch is a different night and a different sequence.
             ordered = rows[np.argsort(when, kind="stable")]
             times = order[ordered]
-            splits = np.flatnonzero(np.diff(times) > 3600.0) + 1
+            # A break wherever the next row is not the next epoch. Splitting
+            # only on a large gap treats a dropped epoch as uninterrupted
+            # sleep, which is exactly the discontinuity a recurrent model will
+            # read straight through.
+            splits = np.flatnonzero(np.abs(np.diff(times) - EPOCH_SECONDS) > 1.0) + 1
             for piece in np.split(ordered, splits):
                 if piece.size < 2:
                     continue
@@ -241,7 +249,7 @@ class SequenceClassifier:
                 rows = np.flatnonzero(groups == subject)
                 ordered = rows[np.argsort(order[rows], kind="stable")]
                 times = order[ordered]
-                splits = np.flatnonzero(np.diff(times) > 3600.0) + 1
+                splits = np.flatnonzero(np.abs(np.diff(times) - EPOCH_SECONDS) > 1.0) + 1
                 for piece in np.split(ordered, splits):
                     if piece.size == 0:
                         continue

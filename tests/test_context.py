@@ -137,3 +137,73 @@ def test_a_table_with_no_times_is_refused():
     without = replace(made, window_starts=np.full(len(made), np.nan))
     with pytest.raises(ValueError, match="no window times"):
         with_context(without)
+
+
+# ── a neighbour must be an adjacent epoch, not an adjacent row ──────────────
+
+
+def gapped() -> FeatureTable:
+    """One participant whose epoch at 90 s went missing.
+
+    Rows at 0, 30, 60, 120, 150 seconds. The row at 120 has no previous epoch
+    in the table: the one before it in *time* was dropped. Taking the row
+    before it instead hands the model an observation from 60 seconds away and
+    calls it the previous 30-second epoch.
+    """
+    starts = np.array([0.0, 30.0, 60.0, 120.0, 150.0])
+    return FeatureTable(
+        feature_names=("fpz_delta_rel", "fpz_amplitude_p95"),
+        values=np.array([[float(i), 0.0] for i in range(5)]),
+        subjects=np.array(["S1"] * 5),
+        labels=np.array(["N2"] * 5),
+        window_ids=tuple(f"w{i}" for i in range(5)),
+        window_starts=starts,
+        feature_set_version="t",
+        qc_policy_version="t",
+    )
+
+
+def test_a_dropped_epoch_breaks_the_run_rather_than_being_stepped_over():
+    made = gapped()
+    got = with_context(made, offsets=(-1,), smooth=0)
+    prev = column(got, f"{CONTEXT_PREFIX}prev1_fpz_delta_rel")
+    # Rows 0,1,2 are one run; rows 3,4 are another. Each run pads its own edge.
+    assert list(prev) == [0, 0, 1, 3, 3]
+    # Specifically: the row at 120 s does NOT borrow the row at 60 s.
+    assert prev[3] != 2
+
+
+def test_the_rolling_mean_does_not_cross_a_gap():
+    made = gapped()
+    got = with_context(made, offsets=(), smooth=1)
+    rolling = column(got, f"{CONTEXT_PREFIX}mean1_fpz_delta_rel")
+    # The second run holds rows 3 and 4 only, so its mean cannot include row 2.
+    assert rolling[3] == pytest.approx((3 + 3 + 4) / 3)
+    assert rolling[4] == pytest.approx((3 + 4 + 4) / 3)
+
+
+def test_two_nights_of_one_participant_are_two_runs():
+    """The end of one night must not borrow from the start of the next."""
+    starts = np.array([0.0, 30.0, 86400.0, 86430.0])
+    made = FeatureTable(
+        feature_names=("fpz_delta_rel",),
+        values=np.array([[0.0], [1.0], [2.0], [3.0]]),
+        subjects=np.array(["S1"] * 4),
+        labels=np.array(["N2"] * 4),
+        window_ids=("a", "b", "c", "d"),
+        window_starts=starts,
+        feature_set_version="t",
+        qc_policy_version="t",
+    )
+    got = with_context(made, offsets=(1,), smooth=0)
+    nxt = column(got, f"{CONTEXT_PREFIX}next1_fpz_delta_rel")
+    assert list(nxt) == [1, 1, 3, 3], "night one must not see night two"
+
+
+def test_an_unbroken_night_is_still_one_run():
+    """The fix must not fragment a recording that has no gaps."""
+    made = table(per_subject=8)
+    got = with_context(made, offsets=(-1,), smooth=0)
+    prev = column(got, f"{CONTEXT_PREFIX}prev1_fpz_delta_rel")
+    first = got.subjects == "S1"
+    assert list(prev[first]) == [0, 0, 1, 2, 3, 4, 5, 6]

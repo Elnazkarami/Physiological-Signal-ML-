@@ -68,6 +68,8 @@ def with_context(
     offsets: Sequence[int] = (-2, -1, 1, 2),
     columns: Sequence[str] | None = None,
     smooth: int = 2,
+    epoch_seconds: float = 30.0,
+    tolerance: float = 1.0,
 ) -> FeatureTable:
     """The same table, with each row carrying its neighbours' features.
 
@@ -103,29 +105,37 @@ def with_context(
     for subject in np.unique(table.subjects):
         rows = np.flatnonzero(table.subjects == subject)
         order = rows[np.argsort(table.window_starts[rows], kind="stable")]
-        block = table.values[np.ix_(order, picked)]
-        n = block.shape[0]
+        times = table.window_starts[order]
+        # A break wherever the next row is not the next epoch: a dropped epoch
+        # mid-night, or the boundary between two nights of the same person.
+        breaks = np.flatnonzero(np.abs(np.diff(times) - epoch_seconds) > tolerance) + 1
 
-        written = 0
-        for offset in offsets:
-            # Clipping the index repeats the edge epoch, which is the mildest
-            # honest statement about what lies outside a recording.
-            shifted = block[np.clip(np.arange(n) + offset, 0, n - 1)]
-            values[order, written : written + len(carried)] = shifted
-            written += len(carried)
-        if smooth:
-            window = 2 * smooth + 1
-            padded = np.vstack(
-                [
-                    np.repeat(block[:1], smooth, axis=0),
-                    block,
-                    np.repeat(block[-1:], smooth, axis=0),
-                ]
-            )
-            cumulative = np.cumsum(padded, axis=0)
-            cumulative = np.vstack([np.zeros((1, block.shape[1])), cumulative])
-            rolling = (cumulative[window:] - cumulative[:-window]) / window
-            values[order, written : written + len(carried)] = rolling
+        for run in np.split(order, breaks):
+            if run.size == 0:
+                continue
+            block = table.values[np.ix_(run, picked)]
+            n = block.shape[0]
+
+            written = 0
+            for offset in offsets:
+                # Clipping repeats this run's own edge epoch, which is the
+                # mildest honest statement about what lies outside it.
+                shifted = block[np.clip(np.arange(n) + offset, 0, n - 1)]
+                values[run, written : written + len(carried)] = shifted
+                written += len(carried)
+            if smooth:
+                window = 2 * smooth + 1
+                padded = np.vstack(
+                    [
+                        np.repeat(block[:1], smooth, axis=0),
+                        block,
+                        np.repeat(block[-1:], smooth, axis=0),
+                    ]
+                )
+                cumulative = np.cumsum(padded, axis=0)
+                cumulative = np.vstack([np.zeros((1, block.shape[1])), cumulative])
+                rolling = (cumulative[window:] - cumulative[:-window]) / window
+                values[run, written : written + len(carried)] = rolling
 
     return replace(
         table,
