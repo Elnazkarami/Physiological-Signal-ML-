@@ -72,6 +72,19 @@ the input that changed is the answer to the question a reviewer is actually aski
 Python, so it can be constructed and tested without installing a scientific stack — if
 the provenance model ever needs NumPy to be exercised, it has grown into something else.
 
+### What is wired, and what is not
+
+The types below, the refusals they enforce, and the CDFS round trip are implemented and
+tested against a running deployment. **The empirical pipelines do not yet emit through
+them.** `build()` and `build_sleep()` produce a feature table that keeps a window
+identifier per row and discards the feature, recording and source-fact identifiers; the
+evaluation produces scores and a partial training run rather than a serialised model
+artifact and predictions. The integration tests therefore exercise the chain with
+constructed predictions rather than with output from the trained WESAD or sleep models.
+
+So this page describes a tested provenance architecture. It does not yet describe the
+route the reported scores took.
+
 ### What one prediction actually looks like in CDFS
 
 Not a description — this is printed from the running deployment the integration tests use
