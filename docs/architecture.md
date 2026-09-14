@@ -72,18 +72,23 @@ the input that changed is the answer to the question a reviewer is actually aski
 Python, so it can be constructed and tested without installing a scientific stack — if
 the provenance model ever needs NumPy to be exercised, it has grown into something else.
 
-### What is wired, and what is not
+### From a fitted model to a fact
 
-The types below, the refusals they enforce, and the CDFS round trip are implemented and
-tested against a running deployment. **The empirical pipelines do not yet emit through
-them.** `build()` and `build_sleep()` produce a feature table that keeps a window
-identifier per row and discards the feature, recording and source-fact identifiers; the
-evaluation produces scores and a partial training run rather than a serialised model
-artifact and predictions. The integration tests therefore exercise the chain with
-constructed predictions rather than with output from the trained WESAD or sleep models.
+The chain runs the whole way for model output. A feature table carries, per row, every
+window it was computed from, the recordings behind those, a content identifier for its
+feature vector, and — where the observations came through CDFS — the facts underneath.
+`evaluation/export.py` turns a scored fold into a `ModelArtifact` and one `Prediction` per
+row, each naming its own row's provenance rather than anything reconstructed by position
+afterwards.
 
-So this page describes a tested provenance architecture. It does not yet describe the
-route the reported scores took.
+That path is tested against a running CDFS deployment with a model actually fitted on a
+feature table: the prediction it produces is written back, and the fact that comes out
+carries the training run, the feature vector and every window in its source reference,
+with a lineage query reaching the observations. A table built before those identifiers
+were retained is refused rather than exported into predictions that point at nothing.
+
+The published WESAD and sleep scores predate the export path, so they are reproducible but
+were not themselves emitted through it.
 
 ### What one prediction actually looks like in CDFS
 

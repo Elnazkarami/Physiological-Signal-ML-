@@ -543,3 +543,105 @@ def test_a_revision_that_rejects_nothing_leaves_the_prediction_in_force(deployme
     after = live_prediction(client, subject=subject)
     assert after is not None
     assert after["fact_id"] == before["fact_id"]
+
+
+# ── a prediction from an actually trained model ─────────────────────────────
+
+
+def test_a_prediction_from_a_fitted_model_travels_the_whole_chain(deployment):
+    """The claim, exercised end to end without a constructed prediction.
+
+    Everything above builds a Prediction by hand to test the boundary. This
+    fits a real model on a real feature table, exports what it produced through
+    the same path the pipelines use, writes it to CDFS, and reads the lineage
+    back. If this passes, a reported score and a traceable fact are the same
+    object rather than two things that resemble each other.
+    """
+    from dataclasses import replace as dataclass_replace
+
+    import numpy as np
+
+    from physioml.core.registry import TrainingRun
+    from physioml.dataset import FeatureTable
+    from physioml.evaluation.export import export_fold
+    from physioml.models.classical import MODELS
+
+    client, _service, _loader = deployment
+    subject = "CARDIO-01-001"
+
+    observations = client.subject_values(STUDY_ID, subject)
+    facts = tuple(f["fact_id"] for f in observations if f["coordinate"]["field"] == "bmi")[
+        :2
+    ]
+    assert facts, "the fixture study should have derived a BMI"
+
+    # A table of the shape the builders now produce: every row carrying the
+    # windows, recordings, feature vector and source facts behind it.
+    rows = 12
+    rng = np.random.default_rng(0)
+    table = FeatureTable(
+        feature_names=("hr_mean", "eda_mean"),
+        values=rng.normal(0, 1, (rows, 2)),
+        subjects=np.array([subject] * (rows // 2) + ["CARDIO-01-002"] * (rows // 2)),
+        labels=np.array(["elevated", "low"] * (rows // 2)),
+        window_ids=tuple(f"win-{i}" for i in range(rows)),
+        window_starts=np.arange(rows, dtype=float) * 60.0,
+        feature_set_version="peripheral-wrist-1.3",
+        qc_policy_version="wrist-e4-1.0",
+        row_windows=tuple((f"win-{i}", f"win-{i}-eda") for i in range(rows)),
+        row_recordings=tuple((f"rec-{i // 6}",) for i in range(rows)),
+        row_feature_vectors=tuple(f"fvec-{i}" for i in range(rows)),
+        row_source_facts=tuple(facts for _ in range(rows)),
+    )
+
+    train = np.flatnonzero(table.subjects == "CARDIO-01-002")
+    test = np.flatnonzero(table.subjects == subject)
+    model = MODELS["logistic"]()
+    model.fit(table.values[train], table.labels[train])
+    predicted = model.predict(table.values[test])
+
+    run = TrainingRun.create(
+        task="event_risk",
+        dataset_version="cardio-fx-01",
+        split_strategy="leave_one_subject_out",
+        train_subjects=("CARDIO-01-002",),
+        test_subjects=(subject,),
+        feature_schema_version=table.feature_set_version,
+        preprocessing_version=table.qc_policy_version,
+        random_seed=0,
+    )
+    artifact, made = export_fold(
+        table,
+        run,
+        test,
+        predicted,
+        model_name="cv_lr",
+        model_version="1.0",
+        study_id=STUDY_ID,
+    )
+    assert len(made) == len(test)
+
+    # One of those predictions, written back and read as a fact.
+    one = dataclass_replace(made[0], predicted_class="elevated", probability=0.71)
+    written = client.write_predictions(
+        STUDY_ID,
+        [one],
+        field="predicted_event_risk",
+        confidence_field="predicted_event_confidence",
+    )
+    assert written["written"] == 2
+
+    fact = client.fact(written["fact_ids"][0])
+    assert fact["transform_id"] == "cv_lr@1.0"
+    assert set(fact["derived_from"]) == set(facts), "named the observations it rests on"
+
+    reference = fact["source_record_ref"]
+    assert one.prediction_id in reference
+    assert artifact.training_run_id in reference
+    assert one.feature_ids[0] in reference, "the feature vector the model was given"
+    for window in one.source_window_ids:
+        assert window in reference, "and every window behind it"
+
+    # And the chain reaches the observations from the model's own output.
+    lineage = client.lineage(written["fact_ids"][0])
+    assert {a["fact_id"] for a in lineage["ancestors"]} & set(facts)

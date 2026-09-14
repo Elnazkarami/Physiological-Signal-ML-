@@ -7,13 +7,16 @@ layer for the [Clinical Data Fabric System](https://github.com/Elnazkarami/clini
 traceable from the model output all the way back to the exact sensor windows,
 transformations, features, model version, and source observations that produced it?
 
-**Where that stands today.** The provenance types and the round trip with CDFS are
-implemented and tested end to end — a correction upstream marks a prediction stale, a
-recomputation supersedes it, and a lineage query reaches the source observations. The
-integration is exercised with constructed predictions. **The WESAD and sleep pipelines do
-not yet emit through it**: they stop at a feature table, so the reported scores are not
-themselves traceable model outputs. Closing that is the current work, tracked under
-[Not built](#not-built).
+**Where that stands today.** The chain is closed for model output: a fitted model exports
+a `ModelArtifact` and one `Prediction` per scored row, each naming its own feature vector,
+the windows behind it and the CDFS facts those rest on — written back, and read as a fact
+whose lineage reaches the original observations. That path is tested against a running
+CDFS deployment with a model actually fitted on a feature table, not a constructed
+example.
+
+What remains is reach rather than architecture: the published WESAD and sleep scores were
+produced before the export path existed, so they are reproducible but were not themselves
+emitted through it.
 
 > **Status: peripheral and neural, both working end to end.** Provenance spine; quality
 > control and features for a wrist band, a chest strap and a sleep montage; subject-wise
@@ -182,14 +185,6 @@ needs windows of several minutes to resolve; these are one minute long. The ches
 electrocardiogram at 700 Hz would support it, but WESAD's condition blocks run five to
 twenty minutes, so re-windowing at five would leave two or three stress windows per
 participant — around forty across the cohort. The limit is the protocol, not the code.
-
-**Predictions emitted from the empirical pipelines.** The provenance types support
-Recording → SignalWindow → Feature → Prediction and the CDFS round trip is tested against a
-running deployment, but the WESAD and sleep training paths stop at a feature table: it
-keeps window identifiers and discards feature, recording and source-fact identifiers, and
-the evaluation produces scores and a training run rather than a model artifact and
-traceable predictions. Until that is closed, the CDFS work is a tested provenance
-integration rather than a chain the reported results travel.
 
 **Anything beyond one modality at a time in the neural pipeline.** The sleep model reads
 EEG, EOG and EMG as columns of one table; it does not learn a separate representation per
