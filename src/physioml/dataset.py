@@ -23,6 +23,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from itertools import takewhile
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -42,6 +43,17 @@ from physioml.peripheral.features import (
 )
 from physioml.peripheral.qc import DEFAULT_POLICY, QCPolicy, assess
 from physioml.peripheral.windowing import epochs
+
+
+def _split_rows(loaded: Any, key: str) -> tuple[tuple[str, ...], ...]:
+    """Read back a per-row list that was joined for storage.
+
+    Absent in tables written before these fields existed, which load as empty
+    rather than failing: an older table is missing provenance, not broken.
+    """
+    if key not in loaded:
+        return ()
+    return tuple(tuple(v.split(";")) if v else () for v in loaded[key].tolist())
 
 
 def _subject_key(subject: str) -> tuple[str, int, str]:
@@ -70,6 +82,11 @@ class FeatureTable:
 
     labels: np.ndarray
     window_ids: tuple[str, ...]
+    """One window identifier per row -- the first, where a row spans several.
+
+    Kept for compatibility and for reading a row back to a slice of signal.
+    ``row_windows`` carries all of them."""
+
     window_starts: np.ndarray
     """Seconds from the start of the recording, per row.
 
@@ -85,6 +102,32 @@ class FeatureTable:
     """Rows discarded for a missing feature, rather than imputed."""
 
     qc_codes: dict[str, int] = field(default_factory=dict)
+
+    row_windows: tuple[tuple[str, ...], ...] = ()
+    """Every window each row was computed from.
+
+    A row of wrist features spans four windows, one per sensor, and a sleep row
+    spans up to four channels. Keeping only the first made a prediction
+    traceable to one of the signals behind it and silent about the others."""
+
+    row_recordings: tuple[tuple[str, ...], ...] = ()
+    """The recordings those windows came from, which is what carries the source
+    digest and the device."""
+
+    row_feature_vectors: tuple[str, ...] = ()
+    """A content identifier for each row's feature vector.
+
+    What a prediction names when it says which features produced it. Computed
+    from the feature identifiers themselves, so two runs over the same signal
+    under the same feature set produce the same value, and a changed feature
+    set produces a different one."""
+
+    row_source_facts: tuple[tuple[str, ...], ...] = ()
+    """CDFS fact identifiers behind each row, where the source has them.
+
+    Empty for a file-based dataset like WESAD or Sleep-EDF, which is why this
+    is a separate field rather than an assumption: the identifiers exist only
+    when the observations came through CDFS."""
 
     def __len__(self) -> int:
         return int(self.values.shape[0])
@@ -190,6 +233,13 @@ class FeatureTable:
             labels=self.labels,
             feature_names=np.array(self.feature_names),
             window_ids=np.array(self.window_ids),
+            # Joined per row rather than stored as ragged arrays, which npz
+            # cannot hold without pickling -- and pickling a data file is a way
+            # to make reading one an arbitrary-code question.
+            row_windows=np.array([";".join(w) for w in self.row_windows]),
+            row_recordings=np.array([";".join(r) for r in self.row_recordings]),
+            row_feature_vectors=np.array(self.row_feature_vectors),
+            row_source_facts=np.array([";".join(f) for f in self.row_source_facts]),
             window_starts=self.window_starts,
             meta=np.array(
                 json.dumps(
@@ -213,6 +263,14 @@ class FeatureTable:
             subjects=loaded["subjects"],
             labels=loaded["labels"],
             window_ids=tuple(loaded["window_ids"].tolist()),
+            row_windows=_split_rows(loaded, "row_windows"),
+            row_recordings=_split_rows(loaded, "row_recordings"),
+            row_feature_vectors=(
+                tuple(loaded["row_feature_vectors"].tolist())
+                if "row_feature_vectors" in loaded
+                else ()
+            ),
+            row_source_facts=_split_rows(loaded, "row_source_facts"),
             window_starts=(
                 loaded["window_starts"]
                 if "window_starts" in loaded

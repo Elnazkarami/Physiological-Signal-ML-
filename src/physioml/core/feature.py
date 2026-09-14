@@ -126,5 +126,26 @@ class FeatureVector:
             label=label,
         )
 
+    @property
+    def vector_id(self) -> str:
+        """A content identifier for this vector, for a prediction to name.
+
+        Built from the feature identifiers, their order, and the feature-set
+        version -- so the same signal measured the same way gives the same
+        value, a changed feature set gives a different one, and the *order*
+        is part of it, because a model fitted on one column order and scored
+        on another is a different computation.
+        """
+        return content_id(
+            "fvec",
+            {
+                "subject_id": self.subject_id,
+                "window_id": self.window_id,
+                "feature_ids": list(self.feature_ids),
+                "names": list(self.names),
+                "feature_set_version": self.feature_set_version,
+            },
+        )
+
     def __len__(self) -> int:
         return len(self.names)

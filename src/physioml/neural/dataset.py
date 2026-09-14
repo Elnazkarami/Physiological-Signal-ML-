@@ -24,11 +24,13 @@ differently.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
 
-from physioml.core.feature import Feature
+from physioml.core.feature import Feature, FeatureVector
+from physioml.core.window import QCStatus, SignalWindow
 from physioml.dataset import FeatureTable
 from physioml.io.edf import EDFError
 from physioml.io.sleep_edf import EPOCH_SECONDS, SleepEDF, SleepEDFError
@@ -73,6 +75,8 @@ def build_sleep(
     row_labels: list[str] = []
     row_windows: list[str] = []
     row_starts: list[float] = []
+    row_windows_all: list[tuple[str, ...]] = []
+    row_recordings: list[tuple[str, ...]] = []
     codes: dict[str, int] = {}
     trimmed = 0
     unscored = 0
@@ -99,6 +103,7 @@ def build_sleep(
             if not stage:
                 continue  # nobody scored this epoch
             found: dict[str, Feature] = {}
+            windows: dict[str, SignalWindow] = {}
             for label, samples in record.signals.items():
                 rate = record.rates[label]
                 begin = round(index * EPOCH_SECONDS * rate)
@@ -115,7 +120,26 @@ def build_sleep(
                 if [c for c in reasons if c not in policy.warn_only]:
                     continue
 
-                window = f"{subject_id}n{night}e{index}"
+                # A real window, not a string that looks like one. Its
+                # identifier is the content hash of the recording, the sample
+                # bounds and the preprocessing -- so a feature naming it can be
+                # resolved back to the exact slice of signal it came from, and
+                # two runs over the same data produce the same identifier.
+                signal_window = SignalWindow.create(
+                    recording_id=record.recordings[label].recording_id,
+                    subject_id=subject_id,
+                    start_sample=begin,
+                    end_sample=end,
+                    start_time=record.recordings[label].start_time
+                    + timedelta(seconds=index * EPOCH_SECONDS),
+                    sampling_rate_hz=rate,
+                    channel_ids=(label,),
+                    qc_status=QCStatus.WARNING if reasons else QCStatus.VALID,
+                    qc_reason_codes=tuple(reasons),
+                    label=str(stage),
+                )
+                windows[label] = signal_window
+                window = signal_window.window_id
                 for name, value in _extract(label, slice_, rate).items():
                     if not np.isfinite(value):
                         continue
@@ -132,6 +156,10 @@ def build_sleep(
             if not found:
                 continue
             rows.append(found)
+            row_windows_all.append(tuple(sorted(w.window_id for w in windows.values())))
+            row_recordings.append(
+                tuple(sorted({record.recordings[c].recording_id for c in windows}))
+            )
             row_subjects.append(subject_id)
             row_labels.append(str(stage))
             row_windows.append(f"{subject_id}n{night}e{index}")
@@ -171,6 +199,18 @@ def build_sleep(
         subjects=np.array([row_subjects[i] for i in complete]),
         labels=np.array([row_labels[i] for i in complete]),
         window_ids=tuple(row_windows[i] for i in complete),
+        row_windows=tuple(row_windows_all[i] for i in complete),
+        row_recordings=tuple(row_recordings[i] for i in complete),
+        # The identity of the feature vector a prediction would name: derived
+        # from the feature identifiers themselves, so the same signal under the
+        # same feature set gives the same value and a changed feature set does
+        # not.
+        row_feature_vectors=tuple(
+            FeatureVector.of(
+                [rows[i][n] for n in names], window_id=row_windows[i]
+            ).vector_id
+            for i in complete
+        ),
         window_starts=np.array([row_starts[i] for i in complete], dtype=float),
         feature_set_version=f"{FEATURE_SET}-{FEATURE_SET_VERSION}",
         qc_policy_version=policy.version,
