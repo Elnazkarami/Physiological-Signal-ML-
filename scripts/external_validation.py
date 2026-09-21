@@ -115,3 +115,7 @@ def main() -> None:
                 f"  {label:32} kappa {values.mean():.3f} ±{values.std():.3f}"
                 f"  worst {values.min():.3f} ({worst})"
             )
+
+
+if __name__ == "__main__":
+    main()

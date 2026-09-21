@@ -72,6 +72,12 @@ class SequenceClassifier:
     def __init__(self, config: SequenceConfig | None = None) -> None:
         self.config = config or SequenceConfig()
         self.classes_: np.ndarray = np.array([])
+        self.validation_subjects: tuple[str, ...] = ()
+        """Participants held out of training for the early-stopping check.
+
+        Recorded so a training run can say which they were: an inner split
+        that is not written down cannot be audited, and a reader cannot tell
+        whether the stopping point was chosen on data the model had seen."""
         self._model: Any = None
         self._mean: np.ndarray = np.array([])
         self._scale: np.ndarray = np.array([])
@@ -136,17 +142,28 @@ class SequenceClassifier:
         self.classes_ = np.unique(y)
         lookup = {c: i for i, c in enumerate(self.classes_)}
 
-        # Scaling is fitted here, inside the fold, like every other model.
-        self._mean = X.mean(axis=0)
-        self._scale = X.std(axis=0)
-        self._scale[self._scale == 0] = 1.0
-
-        nights = self._nights(X, y, groups, order, lookup)
-        subjects = sorted({s for s, _, _ in nights})
+        # The inner split is chosen first, and everything fitted afterwards
+        # is fitted on the inner training participants alone. Computing the
+        # scaling or the class weights over all of them first would let the
+        # early-stopping check see statistics from the participants it is
+        # meant to be held out from -- which does not touch the outer test
+        # set, and does make the validation loss optimistic about when to
+        # stop.
+        subjects = sorted(set(np.asarray(groups).tolist()))
         rng.shuffle(subjects)
         held = max(1, int(len(subjects) * cfg.validation_fraction))
         validation = set(subjects[:held])
+        inner = np.array([str(g) not in validation for g in groups])
+        if not inner.any():
+            inner = np.ones(len(groups), dtype=bool)
+            validation = set()
+        self.validation_subjects = tuple(sorted(validation))
 
+        self._mean = X[inner].mean(axis=0)
+        self._scale = X[inner].std(axis=0)
+        self._scale[self._scale == 0] = 1.0
+
+        nights = self._nights(X, y, groups, order, lookup)
         train = [(a, b) for s, a, b in nights if s not in validation]
         check = [(a, b) for s, a, b in nights if s in validation]
         if not train:
@@ -157,8 +174,11 @@ class SequenceClassifier:
             self._model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay
         )
         # Stages are unevenly distributed and N1 is the rarest; without this the
-        # model buys accuracy by never predicting it.
-        counts = np.array([np.sum(y == c) for c in self.classes_], dtype=float)
+        # model buys accuracy by never predicting it. Counted on the inner
+        # training participants only, for the same reason the scaling is.
+        counts = np.array(
+            [max(np.sum(y[inner] == c), 1) for c in self.classes_], dtype=float
+        )
         weight = torch.tensor((counts.sum() / (len(counts) * counts)), dtype=torch.float32)
         loss_fn = nn.CrossEntropyLoss(weight=weight)
 

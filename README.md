@@ -102,11 +102,12 @@ not a better model.
 against 0.656 for all four channels across 76 participants. Chin electromyography
 contributes nothing measurable: +0.000 with an interval of ±0.002.
 
-**The sleep model carries to a different protocol.** Fitted on 76 Sleep Cassette
-participants and scored on 22 Sleep Telemetry participants — a different recording setup
-and partly a medicated population — agreement falls by **0.019 κ**, from 0.656 to 0.637.
-With neighbouring epochs it reaches **0.680 on the held-out cohort, above the plain model's
-0.656 within its own.**
+**The sleep model carries to a different protocol, at a cost.** One model fitted on 57
+Sleep Cassette participants, scored on 19 held-in Cassette participants and on 22 Sleep
+Telemetry participants — a different recording setup and partly a medicated population.
+Agreement falls from κ **0.687 to 0.622** pooled, or 0.662 to 0.610 averaged over
+participants. A real but modest loss for a model that has never seen that cohort, and the
+strongest evidence here that these features describe sleep rather than one dataset.
 
 **A recurrent model buys nothing on agreement and a great deal on the rare stages.**
 Reading a whole night as a sequence gives the same κ as handing a random forest its

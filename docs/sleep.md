@@ -136,189 +136,37 @@ without finishing, which is why this table is five folds rather than seventy-six
 
 ## Carried to a different protocol
 
-Everything above is leave-one-subject-out within Sleep Cassette, which asks whether a model
-transfers to a new person. Sleep Telemetry asks the harder question: it is a different
-protocol, different participants, and partly a medicated population — 22 people whose
-recordings hold a quarter of Cassette's wake and more than twice its slow-wave sleep.
+Everything above holds participants out of Sleep Cassette, which asks whether a model
+transfers to a new person. Sleep Telemetry asks the harder question: a different protocol,
+different participants, partly a medicated population, and a cohort holding a quarter of
+Cassette's wake and more than twice its slow-wave sleep.
 
-Fitted on all 76 Cassette participants, scored on all 22 Telemetry participants:
+**One model, two test sets.** 19 Cassette participants are reserved and never trained on,
+so the in-domain and cross-cohort scores come from the same fitted model, the same
+training set of 57, and the same pooling.
 
-| random forest | κ | accuracy | bal. accuracy |
-| --- | ---: | ---: | ---: |
-| within Sleep Cassette (76 folds) | 0.656 | 0.762 | 0.672 |
-| **→ Sleep Telemetry** | **0.637** | 0.742 | 0.692 |
-| → Sleep Telemetry, with neighbours | **0.680** | 0.773 | 0.721 |
-
-**Agreement falls by 0.019 κ crossing to a different protocol.** For a model that has never
-seen a Telemetry recording, a medicated participant, or that recording setup, that is a
-small loss, and it is the strongest evidence here that these features describe sleep rather
-than describing this dataset.
-
-**And the context model scored on the held-out cohort (0.680) beats the plain model scored
-within its own (0.656).** Reading the neighbouring epochs is worth more than staying in the
-cohort you were fitted on.
-
-Two things stop this being better than it is.
-
-**Balanced accuracy rises, and that is mostly bookkeeping.** It goes 0.672 → 0.692 because
-Telemetry holds 16% N3 against Cassette's 7%, and N3 is a stage this model does well on
-when there is enough of it to learn — recall 0.864 on Telemetry against 0.642 within
-Cassette. A per-class average rewards a cohort whose classes are more evenly spread. κ,
-which corrects for the marginal distributions, is the number to read across cohorts.
-
-**This is one split, so there is no interval across folds.** What can be reported is the
-spread across the 22 held-out participants: κ mean 0.626, sd 0.100, from 0.379 for ST18 to
-0.759. The weakest three (ST18, ST24, ST21) are weak under both feature sets, so they are a
-property of those recordings rather than of the model.
-
-N1 remains the weak stage and does not transfer: 0.285 plain, 0.267 with context, against
-0.319 within Cassette. Whatever the neighbours contribute to N1 inside a cohort does not
-survive the crossing.
-
-### The features, in full
-
-Twenty per electroencephalogram derivation, five from the electro-oculogram, three from
-the chin electromyogram. Each derivation's features are prefixed with its own name
-(`fpz_`, `pz_`), so a fused row holds both without one silently overwriting the other.
-
-Spectra are estimated by Welch on 4-second segments — long enough to resolve delta, which
-starts at 0.5 Hz and would otherwise be a single bin, and short enough that a 30-second
-epoch holds several to average. Band power is integrated by the trapezium rule rather than
-summed over bins, so the answer does not depend on the frequency resolution and a
-30-second epoch agrees with a 20-second one about the same signal. No filtering is applied
-before the spectrum; the bands do the selecting.
-
-| feature | definition | unit |
-| --- | --- | --- |
-| `<ch>_delta` … `<ch>_beta` | integrated power in 0.5–4, 4–8, 8–12, 12–16, 16–30 Hz | µV²·Hz |
-| `<ch>_delta_rel` … `<ch>_beta_rel` | the same, divided by power in 0.5–30 Hz | fraction |
-| `<ch>_delta_theta_ratio` | delta ÷ theta — slow-wave dominance, which is what separates N3 | ratio |
-| `<ch>_alpha_beta_ratio` | alpha ÷ beta — the balance that moves between REM and light sleep | ratio |
-| `<ch>_hjorth_activity` | variance of the signal | µV² |
-| `<ch>_hjorth_mobility` | sd of the first difference ÷ sd of the signal; for a sampled sine, exactly 2·sin(πf/rate) | dimensionless |
-| `<ch>_hjorth_complexity` | mobility of the first difference ÷ mobility; 1.0 for a pure sine | dimensionless |
-| `<ch>_entropy` | Shannon entropy of the normalised spectrum ÷ log(bins) | 0–1 |
-| `<ch>_edge95` | frequency below which 95% of the power lies | Hz |
-| `<ch>_total_power` | integrated power, 0.5–30 Hz | µV²·Hz |
-| `<ch>_amplitude_p95` | 95th percentile of \|signal\| | µV |
-| `<ch>_zero_crossings` | mean-crossings per second | Hz |
-| `eog_slow_power` | integrated power, 0.3–2 Hz — where eye movements live | µV²·Hz |
-| `eog_slow_rel` | the same ÷ power in 0.3–15 Hz | fraction |
-| `eog_amplitude_sd`, `eog_amplitude_p95`, `eog_range` | deflection size | µV |
-| `chin_emg_rms`, `chin_emg_p95`, `chin_emg_range` | muscle tone, mean removed first so an electrode offset is not tension | µV |
-
-**Relative band power is emitted beside absolute** because absolute amplitude varies
-several-fold between people for reasons unrelated to sleep — skull thickness, electrode
-impedance, the amplifier's gain that night — and a model trained on one participant's
-microvolts and tested on another's is being asked to generalise across the wrong thing.
-
-Sigma is separated from beta because sleep spindles live at 12–16 Hz and are one of the
-defining features of stage 2; folded into a wide beta band they are invisible.
-
-Relative power is normalised over 0.5–30 Hz and not the whole spectrum: above 30 Hz a
-scalp recording is largely muscle, and dividing by it would make every relative figure a
-function of how tense the participant's jaw was.
-
-### Which model is better depends on which stage you care about
-
-| per-stage recall | N1 | N2 | N3 | REM | W |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| logistic regression | **0.473** | 0.712 | 0.740 | 0.702 | 0.770 |
-| random forest | 0.319 | 0.810 | 0.641 | 0.656 | **0.890** |
-
-N3 is the hardest of the four common stages here at 0.641 averaged over participants: it
-is under a tenth of the epochs, so there is comparatively little of it to learn from.
-
-**Logistic regression finds N1 nearly twice as often as random forest and agrees with the
-scorer less overall.** That is the whole disagreement between the two columns above: κ
-rewards agreeing with a scorer whose night is 45% N2, and balanced accuracy rewards seeing
-the stage that is 6% of it. Neither is the right answer in general; they are answers to
-different questions, and reporting only one would hide that there was a choice.
-
-N1 is the stage every automatic scorer fails on, and the confusion says why it is hard
-rather than which model is bad. Random forest, summed over the twenty folds — rows are the
-scorer's label, columns the model's:
-
-| scored → | N1 | N2 | N3 | REM | W | recall |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **N1** | **3,190** | 2,895 | 25 | 1,740 | 2,244 | 0.316 |
-| **N2** | 2,033 | **27,328** | 1,313 | 1,697 | 1,092 | 0.817 |
-| **N3** | 2 | 1,127 | **5,172** | 10 | 147 | 0.801 |
-| **REM** | 1,641 | 1,459 | 27 | **7,740** | 1,036 | 0.650 |
-| **W** | 1,922 | 331 | 98 | 695 | **26,686** | 0.898 |
-
-**This matrix is summed across folds; the per-stage recalls above are averaged over
-participants.** The two answer different questions and give different numbers: N3 reads
-0.801 pooled and 0.641 averaged, and the gap is the participants who have very little N3
-and whom the model scores badly on it. The averaged figure says how this will do for a
-person; the pooled one says how many epochs it got right.
-
-Of the N1 epochs it gets wrong, **29% go to N2, 22% to wake and 17% to REM**. N1 is the
-transition into sleep and it borders all three, which is why it is the stage every
-automatic scorer struggles with and the one human scorers agree on least. The other large
-cells are REM read as N2 (1,459) and N2 read as
-REM (1,697), the same boundary seen from both sides.
-
-### One EEG derivation gets most of the way
-
-The montage question, answered on identical rows and folds with random forest:
-
-What each channel contributes, paired participant by participant across all 76 and
-resampled over participants:
-
-| removed | mean κ change | 95% interval | improved |
-| --- | ---: | ---: | ---: |
-| **EEG Fpz-Cz** | **−0.040** | [−0.055, −0.025] | 15 of 76 |
-| EEG Pz-Oz | −0.030 | [−0.047, −0.014] | 15 of 76 |
-| EOG horizontal | −0.029 | [−0.037, −0.021] | 13 of 76 |
-| chin EMG | +0.000 | [−0.002, +0.002] | **38 of 76** |
-
-**All three signal channels contribute, and by similar amounts.** The frontal derivation
-leads at 0.040, with the occipital one and the electro-oculogram at 0.030 and 0.029 —
-close enough that their intervals overlap, so the ordering between those two is not
-something this cohort establishes.
-
-**And the chin electromyogram is as clean a null as this project has produced**: no change
-at all to three decimal places, an interval of ±0.002, and exactly half the cohort — 38 of
-76 — scoring better without it.
-
-Fpz-Cz is a voltage difference between two electrode sites, not one electrode; a reduced
-montage is one derivation, not one contact. It contributes most of the three, consistent
-with being the derivation single-channel staging is usually built on — but *most* is
-0.040 against 0.030, not the factor of two the twenty-subject means suggested.
-
-On the full cohort, each channel on its own:
-
-| alone | features | bal. accuracy | κ | worst subject |
+| scored on | κ pooled | accuracy | κ averaged over participants | worst |
 | --- | ---: | ---: | ---: | ---: |
-| everything | 48 | 0.674 ±0.102 | **0.656** | 0.310 |
-| **EEG Fpz-Cz** | 20 | 0.613 ±0.097 | **0.569** | 0.392 |
-| EEG Pz-Oz | 20 | 0.593 ±0.113 | 0.552 | 0.122 |
-| EOG horizontal | 5 | 0.569 ±0.094 | 0.473 | 0.280 |
-| chin EMG | 3 | 0.276 ±0.056 | 0.118 | 0.177 |
+| held-in Sleep Cassette (19) | **0.687** | 0.774 | 0.662 ±0.066 | 0.534 (SC77) |
+| **Sleep Telemetry (22)** | **0.622** | 0.728 | 0.610 ±0.092 | 0.408 (ST18) |
 
-**A single frontal derivation reaches κ 0.569 against 0.656 for the whole montage** —
-87% of the agreement from one electrode pair, which is the finding a wearable would be
-designed around.
+**Crossing to a different protocol costs 0.065 κ pooled, or 0.052 averaged over
+participants.** For a model that has never seen a Telemetry recording, a medicated
+participant, or that recording setup, that is a real but modest loss — and it is the
+strongest evidence here that these features describe sleep rather than describing one
+dataset.
 
-Whether 0.569 is good enough is a question for a particular purpose, and this is a
-promising reduced-montage result on one cohort rather than a demonstration of wearable
-suitability. The two electroencephalogram derivations are close to each other alone
-(0.569 against 0.552) — closer than the frontal one's larger removal cost implies, which
-is what happens when two channels carry overlapping information: each is nearly sufficient
-alone and neither is quite redundant.
+Two things keep it honest.
 
-One number in that table is worth pausing on. **Pz-Oz alone has a worst participant of
-0.122** — well below the 0.200 a constant answer scores. A model can do worse than
-chance for one person, and averaging it with seventy-five others hides that completely.
+**This replaces an earlier figure of 0.019, which was not a controlled comparison.** That
+one set a leave-one-subject-out mean over 76 participants against a single pooled score
+from a different model trained on all 76. The difference between those mixes the change of
+protocol with the training-set size, with participant-averaged against pooled κ, and with
+the stage prevalences — three confounds and the effect of interest, in one subtraction.
+The number here is about three times larger.
 
-**Chin electromyography contributes nothing**, and now with a bound: ±0.002 of kappa, with
-half the cohort improving without it. Muscle atonia is half the textbook definition of
-REM, so that deserves an explanation rather than a shrug — in these files the EMG is
-stored at 1 Hz as an envelope, giving 30 samples per epoch and three crude amplitude
-features. The finding is about this recording of that channel, not about chin tone.
+**Both figures are reported because they answer different questions.** Pooled κ counts
+epochs; averaged κ counts participants and is the one that says how this behaves for a
+person. The gap between them is wider on Telemetry (0.622 against 0.610) than in domain,
+which is what a more variable cohort looks like.
 
-
----
-
-[← back to the README](../README.md)

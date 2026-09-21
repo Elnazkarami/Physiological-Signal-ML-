@@ -135,3 +135,40 @@ def test_a_dropped_epoch_starts_a_new_sequence():
         X, y, groups, with_gap, {c: i for i, c in enumerate(model.classes_)}
     )
     assert len(pieces) == len(SUBJECTS) + 1, "S1 should be split in two"
+
+
+def test_the_inner_split_is_chosen_before_anything_is_fitted_to_it():
+    """Normalisation and class weights must come from the inner training
+    participants alone.
+
+    Computing them over everyone first does not touch the outer test set, and
+    it does let the early-stopping check see statistics from the participants
+    it is meant to be held out from -- which makes the validation loss
+    optimistic about when to stop.
+    """
+    X, y, groups, order = sequences(per_subject=30)
+    # One participant with a wildly different scale. If the normalisation were
+    # fitted over everybody, their statistics would move the mean and scale
+    # whether or not they are the ones held out.
+    loud = groups == "S4"
+    X = X.copy()
+    X[loud] *= 100.0
+
+    model = gru(epochs=1, hidden=8, layers=1, seed=0)
+    model.fit(X, y, groups=groups, order=order)
+
+    assert model.validation_subjects, "the inner split should be recorded"
+    inner = np.array([g not in model.validation_subjects for g in groups])
+    assert np.allclose(model._mean, X[inner].mean(axis=0))
+    assert np.allclose(
+        model._scale, np.where(X[inner].std(axis=0) == 0, 1.0, X[inner].std(axis=0))
+    )
+
+
+def test_the_validation_participants_are_disjoint_from_the_training_ones():
+    X, y, groups, order = sequences(per_subject=20)
+    model = gru(epochs=1, hidden=8, layers=1, seed=3)
+    model.fit(X, y, groups=groups, order=order)
+    held = set(model.validation_subjects)
+    assert held
+    assert held < set(SUBJECTS), "some participants must remain to train on"
