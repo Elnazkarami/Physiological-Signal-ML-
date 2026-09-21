@@ -110,15 +110,16 @@ participants. A real but modest loss for a model that has never seen that cohort
 strongest evidence here that these features describe sleep rather than one dataset.
 
 **A recurrent model buys nothing on agreement and a great deal on the rare stages.**
-Reading a whole night as a sequence gives the same κ as handing a random forest its
-neighbours as columns — 0.708 either way, head to head [−0.024, +0.017] — while finding
-**N1 nearly twice as often, 0.614 against 0.380**, at four times the compute. Which is
-better depends on whether you want agreement with a scorer or the transitions themselves.
+Reading a whole night as a sequence gives κ 0.698 against 0.708 for handing a random forest
+its neighbours as columns — head to head [−0.035, +0.008], no difference established —
+while finding **N1 nearly twice as often, 0.611 against 0.381**, at five times the compute.
+Which is better depends on whether you want agreement with a scorer or the transitions
+themselves.
 
 **Reading the neighbouring epochs is worth more than any model choice here.** A scorer
 judges an epoch partly by what surrounds it; handing that context to the same random forest
-raises κ from 0.656 to **0.693, improving 68 of 76 participants** — and lifts N1, the
-transition stage every scorer struggles with, from 0.309 recall to 0.405.
+raises κ by **0.035, interval [+0.027, +0.043], improving 68 of 76 participants** — and
+lifts N1, the transition stage every scorer struggles with, from 0.320 recall to 0.381.
 
 → **[How the results were validated](docs/validation.md)** — the checks every number here
 passed, and why each one is necessary on this kind of data.

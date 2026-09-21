@@ -102,25 +102,25 @@ five-folds, so the comparison is not affected by the split:
 
 | | κ | accuracy | bal. accuracy | fit time |
 | --- | ---: | ---: | ---: | ---: |
-| one epoch alone | 0.675 ±0.034 | 0.765 | 0.697 | 116 s |
-| neighbours as columns | **0.708 ±0.035** | **0.790** | 0.724 | 227 s |
-| recurrent, whole night | **0.708 ±0.036** | 0.782 | **0.785** | 850 s |
+| one epoch alone | 0.675 ±0.034 | 0.765 | 0.697 | 84 s |
+| neighbours as columns | **0.708 ±0.036** | **0.790** | 0.725 | 154 s |
+| recurrent, whole night | 0.698 ±0.029 | 0.774 | **0.779** | 740 s |
 
-**On agreement they are indistinguishable.** Head to head the recurrent model is 0.003
-lower with an interval of [−0.024, +0.017] and 37 of 76 participants improving — as clean
-a null as this project has produced. Both beat the single-epoch model by about the same
-margin: +0.035 [+0.027, +0.042] for the columns, +0.032 [+0.013, +0.050] for the network.
+**On agreement they are indistinguishable.** Head to head the recurrent model is 0.013
+lower with an interval of [−0.035, +0.008] and 32 of 76 participants improving. Both beat
+the single-epoch model, the columns more convincingly: **+0.035 [+0.027, +0.043]** with 68
+of 76 improving, against **+0.022 [+0.002, +0.041]** with 50 of 76.
 
 **On the stages, they are not the same model at all.**
 
 | recall | N1 | N2 | N3 | REM | wake |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| one epoch alone | 0.320 | 0.817 | 0.811 | 0.646 | 0.891 |
-| neighbours as columns | 0.380 | **0.845** | 0.801 | 0.696 | **0.899** |
-| recurrent, whole night | **0.614** | 0.724 | **0.925** | **0.793** | 0.866 |
+| one epoch alone | 0.320 | 0.817 | 0.811 | 0.646 | **0.891** |
+| neighbours as columns | 0.381 | **0.845** | 0.803 | 0.696 | 0.899 |
+| recurrent, whole night | **0.611** | 0.728 | **0.924** | **0.792** | 0.843 |
 
-**The recurrent model finds N1 nearly twice as often as the context columns** — 0.614
-against 0.380, on the stage every automatic scorer fails and human scorers agree on least.
+**The recurrent model finds N1 nearly twice as often as the context columns** — 0.611
+against 0.381, on the stage every automatic scorer fails and human scorers agree on least.
 It is better on N3 and REM too, and pays for it on N2 and wake, the two commonest stages.
 Balanced accuracy, which weights the stages equally, reads 0.785 against 0.724; κ, which
 accounts for how often each occurs, cannot see the trade at all.
@@ -130,9 +130,18 @@ scorer, the columns win**: same κ, better accuracy, a third of the compute. **F
 the transitions, the network wins clearly**, and by more than any feature change here
 achieved.
 
-Fit time is part of the answer. 850 seconds against 227 for the same agreement — and
-leave-one-subject-out was abandoned for the recurrent model after fifteen CPU-hours
-without finishing, which is why this table is five folds rather than seventy-six.
+Fit time is part of the answer. 740 seconds against 154 — and leave-one-subject-out was
+abandoned for the recurrent model after fifteen CPU-hours without finishing, which is why
+this table is five folds rather than seventy-six.
+
+These figures were recomputed after two corrections: context and sequence runs are now cut
+wherever epochs are not exactly adjacent, rather than treating the next surviving row as
+the next epoch, and the recurrent model fits its normalisation and class weights on its
+inner training participants rather than on all of them before choosing the split. The
+first moved nothing measurable — it touched 0.08% of row pairs. The second took the
+recurrent model from 0.708 to 0.698, which is what removing an optimistic early-stopping
+signal looks like. Every command and manifest behind the table is in
+[reproducing](reproducing.md).
 
 ## Carried to a different protocol
 
