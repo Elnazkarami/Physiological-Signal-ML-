@@ -51,6 +51,41 @@ It reports the model held out within Sleep Cassette beside the same model scored
 Telemetry, because the second number only means something next to the first: the gap
 between them is what a change of protocol costs.
 
+## The temporal experiments
+
+Neighbouring epochs as columns, and the recurrent model that reads a whole night:
+
+```bash
+# build the cohort, one first night per participant
+python scripts/build_sleep_features.py ~/Downloads/sleep-edf sleep_sc.npz --nights 1
+
+# one epoch alone, neighbours as columns, and the recurrent model, on identical folds
+python scripts/sleep_experiment.py sleep_sc.npz --mode single_epoch
+python scripts/sleep_experiment.py sleep_sc.npz --mode context
+python scripts/sleep_experiment.py sleep_sc.npz --mode gru
+
+# all three at once, with the paired intervals between them
+python scripts/sleep_experiment.py sleep_sc.npz --mode all --manifest temporal.json
+```
+
+`--mode gru` needs the deep extra: `pip install -e ".[deep]"`. It fits one network per
+fold, so it runs on grouped five-folds rather than leave-one-subject-out — seventy-six
+networks on a CPU is days. All modes use the same folds, so the comparison between them is
+unaffected by that choice.
+
+## Carrying a model to the other cohort
+
+```bash
+python scripts/build_sleep_features.py ~/Downloads/sleep-edf sleep_both.npz --nights 1
+python scripts/external_validation.py sleep_both.npz --train SC --test ST
+python scripts/external_validation.py sleep_both.npz --train SC --test ST --context
+```
+
+One model is fitted on part of Sleep Cassette and scored on the rest of it *and* on Sleep
+Telemetry, so the two numbers differ only by the cohort. Comparing a leave-one-out mean
+against a cross-cohort score instead would mix the protocol with the training size and the
+aggregation.
+
 ## Recording what produced a number
 
 Any evaluation can write a manifest:

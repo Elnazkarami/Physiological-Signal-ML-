@@ -50,8 +50,10 @@ jobs:
         run: pytest tests/test_core.py -q
 
       # ── everything else, which does need one ────────────────────────────────
-      - name: Install the signal, ML and reference extras
-        run: pip install -e ".[dev,signal,ml,reference]"
+      - name: Install the signal, ML, reference and deep extras
+        # deep too, or the sequence tests skip in CI and the recurrent model
+        # is covered only on whichever machine happens to have torch.
+        run: pip install -e ".[dev,signal,ml,reference,deep]"
 
       - name: Lint
         run: ruff check src tests

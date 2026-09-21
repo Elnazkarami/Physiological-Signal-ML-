@@ -25,10 +25,11 @@ rather than assigned to anything.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -68,6 +69,25 @@ MODALITIES: dict[str, Modality] = {
 #: temazepam against placebo. Same format, same channels, different protocol,
 #: which is what makes the second one an external-validation set for a model
 #: fitted on the first.
+#: What produced each cohort, for the recordings this reads.
+DEVICES = {"SC": "Sleep Cassette", "ST": "Sleep Telemetry"}
+
+_DIGEST_BYTES = 1 << 20
+
+
+def _digest(path: Path) -> str:
+    """A checksum of the file, read in chunks rather than into memory.
+
+    A night of polysomnography is tens of megabytes and there are 153 of them;
+    hashing them whole at once would be a gigabyte of nothing useful.
+    """
+    found = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(_DIGEST_BYTES):
+            found.update(chunk)
+    return found.hexdigest()
+
+
 _NAME = re.compile(
     r"^(?P<cohort>SC4|ST7)(?P<subject>\d\d)(?P<night>\d)[A-Z0-9]{2}-"
     r"(?P<kind>PSG|Hypnogram)\.edf$"
@@ -228,13 +248,26 @@ class SleepEDF:
         # of the recording, so the absolute offset is never used. What must not
         # happen is a timestamp that silently claims to know something the file
         # does not say.
-        started = edf.started.replace(tzinfo=UTC) if edf.started else datetime.now(UTC)
+        # A file with no timestamp gets the epoch, not the current time. Using
+        # "now" made a recording's identity depend on when it happened to be
+        # read, so the same file produced a different identifier every run and
+        # nothing downstream could be compared with anything.
+        started = (
+            edf.started.replace(tzinfo=UTC)
+            if edf.started
+            else datetime.fromtimestamp(0, UTC)
+        )
         available = int(edf.duration_seconds // EPOCH_SECONDS)
         last = min(last, available)
         if last <= first:
             raise SleepEDFError(f"{psg_path.name} and its scoring do not overlap")
 
         offset = first * EPOCH_SECONDS
+        cohort = COHORTS[psg_path.name[:3]]
+        # The file itself, not its metadata: two exports with the same name and
+        # different contents are different recordings, and only a digest of the
+        # bytes can say so.
+        digest = _digest(psg_path)
         signals: dict[str, np.ndarray] = {}
         rates: dict[str, float] = {}
         recordings: dict[str, Recording] = {}
@@ -252,10 +285,25 @@ class SleepEDF:
                 subject_id=subject_id,
                 modality=MODALITIES.get(label, Modality.EEG),
                 sampling_rate_hz=rate,
-                start_time=started,
+                # The trimmed recording starts where it was trimmed to, not
+                # where the file starts. Keeping the file's own start time
+                # would put every window's clock hours before the signal it
+                # names.
+                start_time=started + timedelta(seconds=offset),
                 duration_seconds=signals[label].size / rate,
                 channels=(label,),
-                device_name="Sleep Cassette",
+                # One unit per channel, and this recording has one channel.
+                # Passing the string itself reads as a unit per character.
+                units=(edf.channel(label).unit,) if edf.channel(label).unit else (),
+                device_name=DEVICES[cohort],
+                source_uri=psg_path.name,
+                source_hash=digest,
+                metadata={
+                    "cohort": cohort,
+                    "night": str(night),
+                    "trimmed_from_epoch": str(first),
+                    "hypnogram": hypnogram_path.name,
+                },
             )
 
         if not signals:

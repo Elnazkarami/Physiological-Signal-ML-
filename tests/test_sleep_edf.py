@@ -7,9 +7,12 @@ skipped without them.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import numpy as np
 import pytest
 
+from physioml.io.edf import EDF
 from physioml.io.sleep_edf import (
     EPOCH_SECONDS,
     STAGES,
@@ -22,7 +25,13 @@ from tests.edf_writer import tal, write_edf
 RATE = 100.0
 
 
-def night(directory, subject: str, night_number: int, stages: list[tuple[str, float]]):
+def night(
+    directory,
+    subject: str,
+    night_number: int,
+    stages: list[tuple[str, float]],
+    undated: bool = False,
+):
     """One PSG and its hypnogram, with the stages given as (name, seconds)."""
     total = sum(seconds for _, seconds in stages)
     samples = int(total * RATE)
@@ -39,6 +48,7 @@ def night(directory, subject: str, night_number: int, stages: list[tuple[str, fl
             ["EEG Fpz-Cz", "EEG Pz-Oz", "EOG horizontal", "EMG submental"], RATE
         ),
         record_seconds=EPOCH_SECONDS,
+        **({"started": "ah.ah.ah"} if undated else {}),
     )
 
     body = b""
@@ -328,3 +338,75 @@ def test_a_table_built_across_cohorts_keeps_them_apart(tmp_path):
 
     table = build_sleep(tmp_path, margin_minutes=5.0)
     assert set(table.subject_ids) == {"SC01", "ST01"}
+
+
+# ── what a recording says about where it came from ──────────────────────────
+
+
+def test_a_trimmed_recording_starts_where_it_was_trimmed_to(tmp_path):
+    """Keeping the file's own start time would put every window's clock hours
+    before the signal it names."""
+    night(
+        tmp_path,
+        "00",
+        1,
+        [("Sleep stage W", 1800.0), ("Sleep stage 2", 600.0), ("Sleep stage W", 1800.0)],
+    )
+    record = SleepEDF(tmp_path).read("SC00", 1, margin_minutes=5.0)
+    recording = next(iter(record.recordings.values()))
+    assert record.offset_seconds == pytest.approx(1500.0)
+    edf_start = EDF(tmp_path / "SC4001E0-PSG.edf").started
+    assert recording.start_time.replace(tzinfo=None) == edf_start + timedelta(
+        seconds=record.offset_seconds
+    )
+
+
+def test_a_recording_carries_a_digest_of_the_file_itself(tmp_path):
+    """Two exports with the same name and different contents are different
+    recordings, and only a digest of the bytes can say so."""
+    night(tmp_path, "00", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    first = next(iter(SleepEDF(tmp_path).read("SC00", 1).recordings.values()))
+    assert len(first.source_hash) == 64
+    assert first.source_uri == "SC4001E0-PSG.edf"
+
+    # Same name, one sample different.
+    raw = bytearray((tmp_path / "SC4001E0-PSG.edf").read_bytes())
+    raw[-2] = (raw[-2] + 1) % 256
+    (tmp_path / "SC4001E0-PSG.edf").write_bytes(bytes(raw))
+    second = next(iter(SleepEDF(tmp_path).read("SC00", 1).recordings.values()))
+    assert second.source_hash != first.source_hash
+    assert second.recording_id != first.recording_id
+
+
+def test_each_cohort_names_its_own_device(tmp_path):
+    stages = [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)]
+    night(tmp_path, "01", 1, stages)
+    telemetry_night(tmp_path, "01", 1, stages)
+    source = SleepEDF(tmp_path)
+    assert next(iter(source.read("SC01", 1).recordings.values())).device_name == (
+        "Sleep Cassette"
+    )
+    assert next(iter(source.read("ST01", 1).recordings.values())).device_name == (
+        "Sleep Telemetry"
+    )
+
+
+def test_a_recording_identity_does_not_depend_on_when_it_was_read(tmp_path):
+    """A file with no timestamp used to get the current time, so the same file
+    produced a different identifier every run."""
+    night(
+        tmp_path,
+        "00",
+        1,
+        [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)],
+        undated=True,
+    )
+    first = next(iter(SleepEDF(tmp_path).read("SC00", 1).recordings.values()))
+    second = next(iter(SleepEDF(tmp_path).read("SC00", 1).recordings.values()))
+    assert first.recording_id == second.recording_id
+
+
+def test_the_channel_unit_is_carried(tmp_path):
+    night(tmp_path, "00", 1, [("Sleep stage W", 600.0), ("Sleep stage 2", 1200.0)])
+    recording = next(iter(SleepEDF(tmp_path).read("SC00", 1).recordings.values()))
+    assert recording.units == ("uV",)
