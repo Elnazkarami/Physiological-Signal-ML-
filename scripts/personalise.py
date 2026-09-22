@@ -37,6 +37,11 @@ def main() -> None:
         help="where in the session the enrolment is taken from",
     )
     parser.add_argument("--method", default="isotonic", choices=("isotonic", "sigmoid"))
+    parser.add_argument(
+        "--positive",
+        default="stress",
+        help="the class whose probability is being calibrated",
+    )
     args = parser.parse_args()
 
     table = FeatureTable.load(args.table)
@@ -50,6 +55,7 @@ def main() -> None:
             fraction=fraction,
             strategy=args.strategy,
             method=args.method,
+            positive=args.positive,
         )
         print(f"=== enrolment: {fraction:.0%} of each condition ===")
         print(result.table())

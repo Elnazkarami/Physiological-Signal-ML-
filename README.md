@@ -109,6 +109,13 @@ Agreement falls from κ **0.687 to 0.622** pooled, or 0.662 to 0.610 averaged ov
 participants. A real but modest loss for a model that has never seen that cohort, and the
 strongest evidence here that these features describe sleep rather than one dataset.
 
+**Personal calibration works given a night, not given minutes.** Fitted on a
+participant's previous recording and scored on their next, it halves the calibration error
+— ECE 0.090 to **0.034**, Brier 0.068 to 0.038, ranking essentially intact. The same idea
+on seven minutes carved out of the session being scored was *worse* than calibrating on
+the cohort, so the earlier failure was about how much data the calibrator had, not about
+the principle.
+
 **A recurrent model buys nothing on agreement and a great deal on the rare stages.**
 Reading a whole night as a sequence gives κ 0.698 against 0.708 for handing a random forest
 its neighbours as columns — head to head [−0.035, +0.008], no difference established —

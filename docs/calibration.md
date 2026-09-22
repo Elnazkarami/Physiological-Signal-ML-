@@ -150,6 +150,40 @@ That is the finding the retrospective table could not show. **Personal calibrati
 data is not a modest improvement that needs more enrolment; done in the only order a
 deployment could do it, it is worse than leaving the probabilities alone.**
 
+### Given a whole night, it works
+
+The enrolments above are minutes carved out of the session being scored. The one a
+deployment could actually perform is different in two ways: it uses a recording the person
+has already had, and there is a lot more of it. Sleep Telemetry records each participant
+twice, so the calibrator can be fitted on the first night and scored on the second — 21 of
+22 participants, detecting N3, with nothing shared between the two because they are
+different recordings.
+
+| variant | ECE | Brier | AUC |
+| --- | ---: | ---: | ---: |
+| uncalibrated | 0.090 | 0.068 | 0.985 |
+| cohort calibration | 0.068 | 0.048 | 0.985 |
+| constant at enrolment prevalence | 0.046 | 0.129 | 0.500 |
+| **personal, fitted on the previous night** | **0.034** | **0.038** | 0.980 |
+
+**This is the first personalisation result here that survives its own checks.** It more
+than halves the calibration error, it beats cohort calibration on the Brier score as well
+as on ECE — so it is not the base-rate artifact the constant baseline exposes — and it
+costs the ranking almost nothing, 0.985 to 0.980. Compare the seven-minute enrolment,
+which was worse than cohort calibration on every measure and took AUC from 0.952 to 0.891.
+
+**So the earlier failure was about quantity, not principle.** Isotonic regression on fifty
+rows of one person produces a coarse step function that damages what it touches. On a
+whole night it has enough to fit something real.
+
+Three things keep it in proportion. The task is not the same one the earlier sections
+measured — this is N3 against the rest on sleep recordings, not stress on WESAD, so the
+numbers are not comparable across those sections. The two Telemetry nights differ by
+medication, temazepam against placebo, so this crosses a drug condition as well as a
+session, which makes it a harder test and a less clean one. And the enrolment is a whole
+labelled night: a night of expert scoring is a great deal more to ask for than seven
+minutes, even if it is a night the person has already slept.
+
 ### What this does and does not establish
 
 The per-condition enrolment is **retrospective, within-session, condition-informed
@@ -157,12 +191,12 @@ calibration**, and the two costs it conflates are now both measured: 7.1 minutes
 labelled signal, against 33.1 minutes of elapsed session before the same conditions have
 all occurred in order.
 
-What remains untested is a *second session* — calibrating on one night or one recording
-and scoring another. The prospective split above still evaluates within one session, so
-neighbouring windows on either side of the cut share temporal structure that excluding
-overlap does not remove. Given that the within-session prospective result is already worse
-than doing nothing, a cross-session one is unlikely to rescue the method, but it has not
-been run.
+The cross-session result above answers what this section previously listed as untested,
+and answers it in the opposite direction to the expectation recorded here: a second
+session *does* rescue the method, when it brings a night's worth of labels with it. What
+remains untested is the combination that would matter most for a wearable — a short
+enrolment from a previous session rather than a whole one — which is where the quantity
+that makes this work and the cost that makes it impractical meet.
 
 ### The enrolment has to contain the thing being calibrated
 
