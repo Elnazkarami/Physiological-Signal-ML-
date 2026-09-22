@@ -242,3 +242,78 @@ def test_a_prospective_enrolment_costs_the_time_it_waits_through():
 def test_prospective_enrolment_needs_the_labels():
     with pytest.raises(ValueError, match="prospective enrolment needs the label"):
         enrolment(np.arange(100, dtype=float) * 5.0, 0.2, strategy="prospective")
+
+
+# ── calibrating on one night and scoring the next ───────────────────────────
+
+
+def two_nights(rows_per_night: int = 60) -> FeatureTable:
+    """Each participant recorded twice, a day apart."""
+    rng = np.random.default_rng(0)
+    values, subjects, labels, starts = [], [], [], []
+    for index, subject in enumerate(SUBJECTS):
+        offset = (index - len(SUBJECTS) / 2) * 0.6
+        for night in (0, 1):
+            for i in range(rows_per_night):
+                stressed = (i // (rows_per_night // 4)) % 2 == 1
+                values.append([offset + rng.normal(1.6 if stressed else 0.0, 1.0)])
+                subjects.append(subject)
+                labels.append("stress" if stressed else "baseline")
+                starts.append(i * STRIDE + night * 86400.0)
+    return FeatureTable(
+        feature_names=("x",),
+        values=np.array(values),
+        subjects=np.array(subjects),
+        labels=np.array(labels),
+        window_ids=tuple(f"w{i}" for i in range(len(values))),
+        window_starts=np.array(starts, dtype=float),
+        feature_set_version="test-1",
+        qc_policy_version="test-1",
+    )
+
+
+def test_a_recording_boundary_is_found_from_the_gap():
+    from physioml.evaluation.personalisation import sessions_of
+
+    starts = np.array([0.0, 30.0, 60.0, 86400.0, 86430.0])
+    assert list(sessions_of(starts)) == [0, 0, 0, 1, 1]
+
+
+def test_cross_session_takes_the_first_recording_and_scores_the_rest():
+    from physioml.evaluation.personalisation import cross_session
+
+    starts = np.array([0.0, 30.0, 60.0, 86400.0, 86430.0])
+    enrol, evaluate = cross_session(starts)
+    assert list(enrol) == [0, 1, 2]
+    assert list(evaluate) == [3, 4]
+
+
+def test_cross_session_needs_two_recordings():
+    """One night gives no honest split, and inventing one would be worse than
+    reporting that the participant cannot be scored this way."""
+    from physioml.evaluation.personalisation import cross_session
+
+    enrol, evaluate = cross_session(np.arange(10, dtype=float) * 30.0)
+    assert enrol.size == 0 and evaluate.size == 0
+
+
+def test_cross_session_shares_nothing_between_the_two():
+    """No overlap to exclude and no margin to leave: they are different
+    recordings, not two halves of one."""
+    from physioml.evaluation.personalisation import cross_session
+
+    made = two_nights()
+    rows = made.subjects == SUBJECTS[0]
+    enrol, evaluate = cross_session(made.window_starts[rows])
+    assert not set(enrol.tolist()) & set(evaluate.tolist())
+    assert made.window_starts[rows][enrol].max() < 86400.0
+    assert made.window_starts[rows][evaluate].min() >= 86400.0
+
+
+def test_a_cross_session_personalisation_runs_and_is_scored():
+    made = two_nights()
+    result = personalise(made, MODELS["logistic"], strategy="cross_session")
+    assert len(result.subjects) == len(SUBJECTS)
+    for row in result.subjects:
+        assert row.enrolment_rows > 0
+        assert row.evaluation_rows > 0

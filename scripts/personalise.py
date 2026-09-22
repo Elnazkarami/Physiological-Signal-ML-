@@ -33,7 +33,7 @@ def main() -> None:
     parser.add_argument(
         "--strategy",
         default="per_condition",
-        choices=("per_condition", "prospective", "blocks", "prefix"),
+        choices=("per_condition", "cross_session", "prospective", "blocks", "prefix"),
         help="where in the session the enrolment is taken from",
     )
     parser.add_argument("--method", default="isotonic", choices=("isotonic", "sigmoid"))

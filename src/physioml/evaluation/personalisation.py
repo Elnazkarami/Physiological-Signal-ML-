@@ -137,6 +137,43 @@ class Personalisation:
 # ── choosing the enrolment ───────────────────────────────────────────────────
 
 
+def sessions_of(starts: np.ndarray, gap_seconds: float = 3600.0) -> np.ndarray:
+    """Which recording each row belongs to, from the gaps between them.
+
+    A participant with two nights has one row ordering and two recordings. The
+    boundary is a gap far larger than an epoch -- these tables offset each
+    night by a day -- and everything that follows treats the two as separate
+    sessions rather than one long one with a hole in it.
+    """
+    order = np.argsort(starts, kind="stable")
+    session = np.zeros(starts.size, dtype=int)
+    if starts.size:
+        breaks = np.flatnonzero(np.diff(starts[order]) > gap_seconds) + 1
+        for number, run in enumerate(np.split(order, breaks)):
+            session[run] = number
+    return session
+
+
+def cross_session(
+    starts: np.ndarray, *, gap_seconds: float = 3600.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Calibrate on one recording, score the next.
+
+    The only enrolment here that a deployment could perform without asking the
+    person to sit through a labelling session: it uses a night they have
+    already had. Nothing is shared between the two -- no overlap to exclude,
+    no margin to leave -- because they are different recordings.
+
+    Returns empty sets when the participant has only one recording, which is
+    the honest answer rather than a fabricated split.
+    """
+    session = sessions_of(starts, gap_seconds)
+    if len(set(session.tolist())) < 2:
+        return np.zeros(0, dtype=int), np.zeros(0, dtype=int)
+    first = session.min()
+    return np.flatnonzero(session == first), np.flatnonzero(session > first)
+
+
 def enrolment(
     starts: np.ndarray,
     fraction: float,
@@ -157,8 +194,13 @@ def enrolment(
     honest arithmetic of the idea rather than a bug in it. A block costs the
     same two minutes however long it is.
 
-    Four strategies, and the differences between them are findings rather
+    Five strategies, and the differences between them are findings rather
     than options.
+
+    ``cross_session`` calibrates on one recording and scores the next. It is
+    the only one a deployment could perform without asking the person to sit
+    through a labelling session, because it uses a night they have already
+    had.
 
     ``prospective`` fits on a prefix of the session and scores the remainder,
     which is the only one of these a deployment could actually perform: nothing
@@ -199,6 +241,8 @@ def enrolment(
                 "point by which every condition has been seen at least once"
             )
         return _prospective(starts, labels, fraction, window_seconds)
+    if strategy == "cross_session":
+        return cross_session(starts)
     if strategy == "per_condition":
         if labels is None:
             raise ValueError(
