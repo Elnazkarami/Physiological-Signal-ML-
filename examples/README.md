@@ -75,22 +75,27 @@ control, feature extraction or the export alters the chain, that test fails.
 
 ### The identifiers will not match on your machine, and that is correct
 
-Run this yourself and the window and recording identifiers will be the ones
-committed here, while `prediction_id` and the feature-vector id will differ.
+Run this yourself and **none** of the identifiers will match the ones committed
+here, while every measurement will.
 
-Those identifiers are content hashes of feature values, and feature values are
-floating-point results of filtering and spectral estimation. Different builds
-of NumPy, SciPy or a BLAS agree on them to about eleven significant figures and
+The identifiers are content hashes, and somewhere in each one's ancestry is a
+floating-point measurement. A recording's covers a sha256 of its samples; a
+window's covers its recording; a feature vector's covers the feature values;
+a prediction's covers all of them. Different builds of NumPy, SciPy, a BLAS or
+even libm's `sin` agree on those to about eleven significant figures and
 disagree in the last bits — this project's CI produced
 `2.2163459163476735e-05` where the machine that committed these files produced
-`2.2163459163323433e-05`. A hash has no notion of nearly. Window and recording
-identifiers are stable because they hash metadata — the subject, the device,
-the interval, the sampling rate — and nothing measured.
+`2.2163459163323433e-05`. A hash has no notion of nearly.
 
-So the guarantee is this: **identical within an environment, equal to a
-tolerance across environments.** That is what content-hashed provenance over
-floating-point measurements can offer, and the tests assert exactly it rather
-than a stronger claim that would fail on the second machine to try it. For
+That is the cost of identifiers that fingerprint the signal instead of merely
+describing it, and it is the right trade: an identifier that ignored the
+samples would be the same for a recording and its correction, which is the one
+thing provenance must never do.
+
+So the guarantee is: **identical within an environment, equal to a tolerance
+across environments.** The tests assert exactly that — the structure and the
+records field by field, the numbers to a tolerance, the identifiers masked —
+rather than a stronger claim that fails on the second machine to try it. For
 tracing a prediction back to its inputs, which is what this is for, within-
 environment identity is the property that matters: a prediction and the
 features behind it are hashed by the same process on the same machine.

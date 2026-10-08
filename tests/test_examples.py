@@ -22,9 +22,13 @@ say so rather than hiding it:
 * against the committed output, the structure must match exactly and the
   numbers to a tolerance, with the identifiers masked.
 
-Identifiers derived from metadata rather than measurements -- windows and
-recordings -- are compared exactly, because nothing about them is numerical
-and they would be free to drift otherwise.
+This reaches further than it first appears. A recording identifier covers a
+sha256 of its samples, so it moves with them; a window identifier covers its
+recording, so it moves too; and a feature vector and a prediction cover both.
+*Every* identifier in the chain is therefore measurement-dependent, which is
+the price of having them fingerprint the signal rather than only describe it.
+The records behind them are compared field by field with the identifiers
+masked, which is what actually establishes that the chain has not changed.
 
 The example is also the only place the whole chain runs in one process, so a
 break anywhere between the recording and the prediction shows up here even
@@ -55,9 +59,11 @@ REGENERATE = (
     "> examples/expected/quickstart_output.txt"
 )
 
-#: Identifiers whose hash covers measured values, so they move with the last
-#: bits of the arithmetic.
-MEASURED_ID = re.compile(r"\b(pred|fvec|model|trun)-[0-9a-f]{32}\b")
+#: Every identifier in the chain. All of them hash measured values somewhere in
+#: their ancestry -- a recording covers a digest of its samples, and everything
+#: downstream covers the recording -- so all of them move with the last bits of
+#: the arithmetic.
+MEASURED_ID = re.compile(r"\b(pred|fvec|model|trun|win|rec)-[0-9a-f]{32}\b")
 
 #: Any number, so that text can be compared with the arithmetic held apart.
 NUMBER = re.compile(r"-?\d+\.\d+(?:[eE][-+]?\d+)?|-?\d+")
@@ -131,6 +137,13 @@ def test_the_committed_output_still_has_the_same_numbers(produced):
 
 
 def test_the_committed_trace_still_matches(produced):
+    """Field by field, with the identifiers masked.
+
+    Comparing identifiers would only re-assert that two machines disagree about
+    floating point. What has to hold is that the same records are present,
+    describing the same windows of the same recordings, with the same
+    measurements in them to a tolerance.
+    """
     _output, trace = produced
     committed = json.loads((EXPECTED / "prediction_trace.json").read_text())
 
@@ -141,11 +154,20 @@ def test_the_committed_trace_still_matches(produced):
             "window_start",
             "window_end",
             "predicted_class",
-            # Metadata hashes, not measurement hashes. These must not drift.
-            "source_window_ids",
             "source_fact_ids",
         ):
             assert mine[field] == published[field], f"{field} changed. {REGENERATE}"
+        for field in ("window_start_seconds", "window_seconds"):
+            # Construction constants rather than measurements, so these should
+            # be exact -- compared loosely anyway, because being strict about a
+            # float buys nothing and costs a false failure.
+            assert mine[field] == pytest.approx(published[field]), (
+                f"{field} changed. {REGENERATE}"
+            )
+        for field in ("feature_ids", "source_window_ids"):
+            assert len(mine[field]) == len(published[field]), (
+                f"{field} changed. {REGENERATE}"
+            )
         assert mine["probability"] == pytest.approx(
             published["probability"], rel=TOLERANCE, abs=TOLERANCE
         ), REGENERATE
@@ -157,25 +179,65 @@ def test_the_committed_trace_still_matches(produced):
     for field in ("model_name", "model_version", "task", "feature_schema_version"):
         assert trace["artifact"][field] == committed["artifact"][field], REGENERATE
 
-    # The resolved records, compared the same way: structure exactly, and the
-    # measurements that reach a hash to a tolerance.
-    for kind in ("windows", "recordings", "training_runs"):
-        assert sorted(trace["records"][kind]) == sorted(committed["records"][kind]), (
-            f"the {kind} records changed. {REGENERATE}"
+    records, published_records = trace["records"], committed["records"]
+    for kind in records:
+        assert len(records[kind]) == len(published_records[kind]), (
+            f"the number of {kind} records changed. {REGENERATE}"
         )
-    assert len(trace["records"]["feature_vectors"]) == len(
-        committed["records"]["feature_vectors"]
-    ), REGENERATE
+
+    # Windows describe a slice of signal. Compared as a set of descriptions,
+    # since their identifiers no longer survive a change of machine.
+    def described(window: dict[str, Any]) -> tuple:
+        return (
+            window["subject_id"],
+            window["start_sample"],
+            window["end_sample"],
+            window["start_time"],
+            window["sampling_rate_hz"],
+            tuple(window["channel_ids"]),
+            window["qc_status"],
+            window["label"],
+        )
+
+    assert sorted(map(described, records["windows"].values())) == sorted(
+        map(described, published_records["windows"].values())
+    ), f"the windows behind the predictions changed. {REGENERATE}"
+
+    def sourced(recording: dict[str, Any]) -> tuple:
+        return (
+            recording["study_id"],
+            recording["subject_id"],
+            recording["modality"],
+            recording["sampling_rate_hz"],
+            recording["start_time"],
+            recording["duration_seconds"],
+            tuple(recording["channels"]),
+            recording["device_name"],
+            recording["source_uri"],
+            # Not source_hash: it is a digest of the samples, and the samples
+            # differ in their last bits between machines. That it is present
+            # and the right length is asserted separately.
+        )
+
+    assert sorted(map(sourced, records["recordings"].values())) == sorted(
+        map(sourced, published_records["recordings"].values())
+    ), f"the recordings behind the windows changed. {REGENERATE}"
+
     for mine, published in zip(
-        trace["records"]["feature_vectors"].values(),
-        committed["records"]["feature_vectors"].values(),
+        records["feature_vectors"].values(),
+        published_records["feature_vectors"].values(),
         strict=True,
     ):
         assert mine["names"] == published["names"], REGENERATE
-        assert mine["source_window_ids"] == published["source_window_ids"], REGENERATE
+        assert mine["subject_id"] == published["subject_id"], REGENERATE
         assert mine["values"] == pytest.approx(
             published["values"], rel=TOLERANCE, abs=TOLERANCE
         ), REGENERATE
+
+    one = next(iter(records["training_runs"].values()))
+    other = next(iter(published_records["training_runs"].values()))
+    for field in ("task", "split_strategy", "train_subjects", "test_subjects"):
+        assert one[field] == other[field], f"{field} changed. {REGENERATE}"
 
 
 # ── what the published chain has to contain ─────────────────────────────────
