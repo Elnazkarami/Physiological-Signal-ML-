@@ -13,8 +13,9 @@ What it shows is what the ablation is for -- not which sensor scores highest,
 but which ones carry something the rest of the array does not, and how much of
 that survives being measured across fifteen participants rather than pooled
 over windows. Two of the four intervals include zero. Those are drawn the same
-size as the others and marked, because an effect nobody established looks
-identical to one that matters until you show the interval.
+size as the others and marked, because an interval that includes zero still
+bounds the effect -- it says the direction is uncertain, not that there is
+nothing there -- and a bar without its interval cannot say either.
 
 Requires matplotlib: ``pip install -e ".[figures]"``.
 """
@@ -139,7 +140,8 @@ def main() -> None:
         "Grey dots are individual participants. Bars are 95% percentile bootstrap "
         "intervals over participants,\nnot over windows: overlapping 60-second "
         "windows are not independent observations. Red marks an interval\nthat "
-        "excludes zero; grey marks one that does not, and establishes nothing.",
+        "excludes zero; grey marks one that includes it, where the direction of "
+        "the effect remains uncertain.",
         fontsize=7.6,
         color=MUTED,
         va="bottom",

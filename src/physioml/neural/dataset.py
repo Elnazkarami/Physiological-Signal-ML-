@@ -77,6 +77,7 @@ def build_sleep(
     row_starts: list[float] = []
     row_windows_all: list[tuple[str, ...]] = []
     row_recordings: list[tuple[str, ...]] = []
+    row_start_times: list[float] = []
     codes: dict[str, int] = {}
     trimmed = 0
     unscored = 0
@@ -163,6 +164,10 @@ def build_sleep(
             row_subjects.append(subject_id)
             row_labels.append(str(stage))
             row_windows.append(f"{subject_id}n{night}e{index}")
+            # The real instant this epoch began. Sleep-EDF carries acquisition
+            # timestamps, and discarding them to count seconds from the Unix
+            # epoch dated every recording in the cohort to 1970.
+            row_start_times.append(next(iter(windows.values())).start_time.timestamp())
             # Offset by night so the two nights of one subject do not appear to
             # be the same hours twice, which any split made in time would then
             # interleave.
@@ -199,6 +204,7 @@ def build_sleep(
         subjects=np.array([row_subjects[i] for i in complete]),
         labels=np.array([row_labels[i] for i in complete]),
         window_seconds=EPOCH_SECONDS,
+        row_start_times=np.array([row_start_times[i] for i in complete], dtype=float),
         window_ids=tuple(row_windows[i] for i in complete),
         row_windows=tuple(row_windows_all[i] for i in complete),
         row_recordings=tuple(row_recordings[i] for i in complete),

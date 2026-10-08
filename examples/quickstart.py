@@ -23,6 +23,7 @@ Requires the signal and ml extras::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import textwrap
@@ -34,7 +35,13 @@ import numpy as np
 from physioml.core.recording import Recording
 from physioml.core.registry import TrainingRun
 from physioml.dataset import assemble
-from physioml.evaluation.export import as_json, export_fold
+from physioml.evaluation.export import (
+    as_bundle,
+    as_json,
+    export_fold,
+    parameter_digest,
+    unresolved,
+)
 from physioml.evaluation.run import evaluate
 from physioml.evaluation.splits import leave_one_subject_out
 from physioml.io.wesad import LABEL_HZ, WRIST_HZ, SubjectData, modality_of
@@ -131,6 +138,34 @@ def wrist_signals(
     )
 
 
+def digest_of(array: np.ndarray) -> str:
+    """A checksum of the samples themselves.
+
+    A recording's identity is otherwise built from metadata alone -- subject,
+    device, rate, interval -- every one of which can stay the same while the
+    samples change. The WESAD reader computes this; a synthetic recording that
+    skipped it would be demonstrating a weaker identity than the real pipeline
+    has.
+    """
+    return hashlib.sha256(np.ascontiguousarray(array).tobytes()).hexdigest()
+
+
+def fitted_parameters(pipeline: object) -> list[object]:
+    """Every array a fitted pipeline learned, in a fixed order.
+
+    The scaler is part of the fitted state, not packaging: the same
+    coefficients applied after a different centring are a different model.
+    Taking only the classifier's coefficients would hash half of what was fit.
+    """
+    found = []
+    for _name, step in getattr(pipeline, "steps", [("model", pipeline)]):
+        for attribute in ("mean_", "scale_", "var_", "coef_", "intercept_"):
+            value = getattr(step, attribute, None)
+            if value is not None:
+                found.append(value)
+    return found
+
+
 def participant(subject_id: str, seed: int) -> SubjectData:
     """A participant the pipeline cannot tell from a real one."""
     rng = np.random.default_rng(seed)
@@ -155,6 +190,7 @@ def participant(subject_id: str, seed: int) -> SubjectData:
             ),
             device_name="synthetic E4",
             source_uri=f"generated://{subject_id}/{name}",
+            source_hash=digest_of(array),
             metadata={"synthetic": "true", "wesad_signal": name},
         )
         for name, array in signals.items()
@@ -189,11 +225,17 @@ def main() -> None:
 
     print("\n[2/5] windowing, quality control, feature extraction")
     rows: list[dict] = []
-    meta: list[tuple[str, str, str, float, tuple[str, ...], tuple[str, ...]]] = []
+    meta: list[tuple[str, str, str, float, tuple[str, ...], tuple[str, ...], float]] = []
     codes: dict[str, int] = {}
     unlabelled = 0
+    # Kept so the exported chain can be published with its references resolved
+    # rather than merely named. The table stores identifiers, not objects, and
+    # the builder is the only thing that still holds the objects.
+    every_window: dict[str, object] = {}
+    every_recording: dict[str, object] = {}
 
     for data in cohort:
+        every_recording.update({r.recording_id: r for r in data.recordings.values()})
         for epoch in epochs(data, length_seconds=60.0, stride_seconds=5.0):
             # A window straddling two conditions has no single label, so it is
             # not a training example. The real builder drops these too.
@@ -214,6 +256,7 @@ def main() -> None:
             if not features:
                 continue
             rows.append({f.qualified_name: f for f in features})
+            every_window.update({w.window_id: w for w in epoch.windows.values()})
             meta.append(
                 (
                     data.subject_id,
@@ -222,6 +265,7 @@ def main() -> None:
                     epoch.start_seconds,
                     tuple(sorted(w.window_id for w in epoch.windows.values())),
                     tuple(sorted(w.recording_id for w in epoch.windows.values())),
+                    next(iter(epoch.windows.values())).start_time.timestamp(),
                 )
             )
 
@@ -243,6 +287,7 @@ def main() -> None:
         feature_set_version="synthetic-wrist-1",
         qc_policy_version=DEFAULT_POLICY.version,
         qc_codes=codes,
+        start_times=[m[6] for m in meta],
         window_seconds=60.0,
     )
     print(f"      {table.summary()}")
@@ -327,6 +372,11 @@ def main() -> None:
         model_version="1.0",
         probability=probability,
         study_id=STUDY,
+        # A digest of the coefficients that came out, so the artifact's
+        # identity covers the fitted object and not only the request that
+        # produced it. Without it two models fitted by the same run on the
+        # same columns share an identifier however different their parameters.
+        artifact_hash=parameter_digest(*fitted_parameters(model)),
     )
     print(
         f"      held out {split.test_subjects[0]}, {len(predictions)} predictions exported"
@@ -337,7 +387,15 @@ def main() -> None:
     print("\n--- the chain behind one prediction " + "-" * 38)
     print(f"prediction      {one.prediction_id}")
     print(f"  participant   {one.subject_id}")
-    print(f"  window        {one.window_start:%H:%M:%S} to {one.window_end:%H:%M:%S}")
+    print(
+        f"  window        {one.window_start:%Y-%m-%d %H:%M:%S} to "
+        f"{one.window_end:%H:%M:%S} UTC"
+    )
+    print(
+        f"                {table.window_starts[row]:.0f}s into a recording "
+        f"that began at "
+        f"{cohort[0].recordings['BVP'].start_time:%Y-%m-%d %H:%M} UTC"
+    )
     says = "stress" if one.predicted_class == "1" else "not stress"
     print(f"  says          {one.predicted_class!r} ({says}) at p={one.probability:.3f}")
     print(f"  from vector   {one.feature_ids[0]}")
@@ -352,6 +410,7 @@ def main() -> None:
         f"    model       {artifact.model_name} {artifact.model_version}, "
         f"fitted by run {artifact.training_run_id}"
     )
+    print(f"    parameters  sha256:{artifact.artifact_hash[:32]}...")
     print(
         f"    trained on  {len(split.train_subjects)} participants, "
         f"holding out {split.test_subjects[0]}"
@@ -359,23 +418,67 @@ def main() -> None:
     print(f"  source facts  {one.source_fact_ids or 'none -- not sourced through CDFS'}")
     print("-" * 74)
 
-    print("\nEvery identifier above is a content hash: the same signal through the")
-    print("same feature set and the same model yields the same identifier, and a")
-    print("changed input cannot keep the old one. Nothing here is a database key,")
-    print("and no external service was involved.")
+    print(
+        textwrap.fill(
+            "Every identifier above is a content hash, and each covers a "
+            "different thing. A recording identifier covers its metadata and a "
+            "sha256 of the samples. A window covers the recording, the sample "
+            "bounds and the preprocessing. A feature vector covers the feature "
+            "values. An artifact covers the model, the run, the expected "
+            "columns and a digest of the fitted coefficients. A prediction "
+            "covers all of that plus the answer and its probability.",
+            width=74,
+        )
+    )
+    print(
+        textwrap.fill(
+            "So recomputing any of these from the same inputs reproduces the "
+            "identifier, and changing an input it covers cannot. What they do "
+            "not do is certify that the samples on disk are unchanged since "
+            "they were read -- that is what the recording's source_hash is "
+            "for, and it is only as good as the moment it was taken. Nothing "
+            "here is a database key, and no external service was involved.",
+            width=74,
+        )
+    )
 
     record = as_json(artifact, predictions[:1])
-    print("\nas_json(), the form written beside a score:")
+    print("\nas_json(), the form written beside a score (references, not records):")
     print(json.dumps(record["predictions"][0], indent=2))
 
     if args.write_trace:
         args.write_trace.parent.mkdir(parents=True, exist_ok=True)
-        full = as_json(artifact, predictions)
+        # The bundle rather than as_json: every reference resolved, so the
+        # published file stands on its own instead of naming records that live
+        # somewhere the reader has no access to.
+        referenced = {w for p_ in predictions for w in p_.source_window_ids}
+        full = as_bundle(
+            artifact,
+            predictions,
+            table=table,
+            rows=scored,
+            run=fold,
+            windows=[every_window[w] for w in sorted(referenced)],
+            recordings=[
+                every_recording[r]
+                for r in sorted({r for row_ in scored for r in table.row_recordings[row_]})
+            ],
+        )
+        dangling = unresolved(full)
+        if dangling:
+            raise SystemExit(
+                f"the exported chain refers to {len(dangling)} records it does "
+                f"not contain: {dangling[:3]}"
+            )
         args.write_trace.write_text(json.dumps(full, indent=2) + "\n")
         # To stderr, so that stdout is the same whether or not the flag is
         # passed and one command can regenerate both committed files.
         print(
-            f"wrote {len(full['predictions'])} predictions to {args.write_trace}",
+            f"wrote {len(full['predictions'])} predictions, "
+            f"{len(full['records']['feature_vectors'])} feature vectors, "
+            f"{len(full['records']['windows'])} windows and "
+            f"{len(full['records']['recordings'])} recordings to "
+            f"{args.write_trace}; every reference resolves",
             file=sys.stderr,
         )
 

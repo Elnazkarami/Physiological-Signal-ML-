@@ -15,9 +15,12 @@ validation).
 
 ## Try it in thirty seconds
 
-No dataset, no credentials, no services. Synthetic signals, the real pipeline:
+No dataset, no credentials, no services. Synthetic signals, the real pipeline.
+Needs Python 3.11 or newer:
 
 ```bash
+git clone https://github.com/Elnazkarami/Physiological-Signal-ML-.git
+cd Physiological-Signal-ML-
 pip install -e ".[signal,ml]"
 python examples/quickstart.py
 ```
@@ -154,10 +157,18 @@ passed, and why each one is necessary on this kind of data.
 
 Every scored row exports a `Prediction` naming its own feature vector, the signal windows
 behind it, the preprocessing applied, the quality verdict and the `ModelArtifact` that
-produced it — each identified by a content hash, so the same inputs and the same model
-yield the same identifier and a changed input cannot keep the old one. The export refuses
-a feature table that does not carry per-row identifiers, because a prediction that cannot
-name what produced it is the thing this exists to prevent.
+produced it. Each identifier is a content hash of a different thing — a recording covers
+its metadata *and a digest of the samples*, a window covers the bounds and the
+preprocessing, an artifact covers the fitted coefficients — so recomputing any of them
+from the same inputs reproduces the identifier, and changing an input it covers cannot.
+[What each one covers, exactly](examples/#what-each-identifier-actually-covers). The
+export refuses a feature table that does not carry per-row identifiers, because a
+prediction that cannot name what produced it is the thing this exists to prevent.
+
+`export.as_bundle()` publishes the chain with every reference resolved in one document,
+and `export.unresolved()` reports any that lead nowhere — which is how the committed
+[example trace](examples/expected/prediction_trace.json) is checked, rather than by
+trusting that identifiers of the right shape have records behind them.
 
 **This works with no external services.** `python examples/quickstart.py` prints a full
 chain from synthetic signals. → [architecture](docs/architecture.md)
@@ -217,9 +228,15 @@ sleep in an unrestricted recording.
 
 ## Install
 
+Python 3.11 or newer.
+
 ```bash
+git clone https://github.com/Elnazkarami/Physiological-Signal-ML-.git
+cd Physiological-Signal-ML-
+
 pip install -e ".[dev]"          # core + tooling, no scientific stack
 pip install -e ".[signal,ml]"    # signal processing and models
+pip install -e ".[figures]"      # redrawing the figures
 ```
 
 The core package has no runtime dependencies and CI asserts it on every commit.

@@ -45,41 +45,51 @@ slide. The measured results are in docs/ and in the README.
       held out P01, 62 predictions exported
 
 --- the chain behind one prediction --------------------------------------
-prediction      pred-856899d54649285788710a63cda71435
+prediction      pred-3170fc03adaf1dc3279695288da4842f
   participant   P01
-  window        00:00:00 to 00:01:00
+  window        2026-01-01 09:00:00 to 09:01:00 UTC
+                0s into a recording that began at 2026-01-01 09:00 UTC
   says          '0' (not stress) at p=0.000
-  from vector   fvec-26303fe749c4ccc8c4ad89b938cece59
+  from vector   fvec-77f838d7cce4f67168d78feb46b6d3d2
     computed over 28 features, set synthetic-wrist-1
-  over windows  win-05c2369ae15d23afe4933c2d3446e827, win-069059d29c1e220f5de0513c135eca21, win-0b7dea428b67058efe825357c4f84e7b, win-faf613121c7ace919dc81faee44c6fe5
-    of recordings rec-1e754e27467e938d085b43fcade637d0, rec-585f72ce6d7812fe20a9916098975d7e, rec-a2314fcd62c96d2829188b2cb9a53932, rec-d2d98a945aa252e1483b65385b2127bb
-  by artifact   model-12939e4321d0d9e148e6e2a47b851da7
+  over windows  win-254018ee14e97a203981f1dac34994ec, win-8349d3582dcbe3d4a4e0ae7ef59e6e81, win-d2ee9cb1b27ab02234800b6a11e26103, win-ecd0963fae208516c50544ab13e8077c
+    of recordings rec-25c28cbbc5eaf9455df881b5dcf78f10, rec-7690b5e149c51b52815c3a911cadea46, rec-c078ce5809239358dbc28470ef7a5efb, rec-d9b6d973eafadd9812a560f191ccffd6
+  by artifact   model-f80510c552e64fb94c9eda2af7f6b6e0
     model       logistic 1.0, fitted by run trun-3d5e6a1c12a7165c46b37df8b69c6136
+    parameters  sha256:0f9e33b5ce27427f952325706b098af8...
     trained on  5 participants, holding out P01
   source facts  none -- not sourced through CDFS
 --------------------------------------------------------------------------
+Every identifier above is a content hash, and each covers a different
+thing. A recording identifier covers its metadata and a sha256 of the
+samples. A window covers the recording, the sample bounds and the
+preprocessing. A feature vector covers the feature values. An artifact
+covers the model, the run, the expected columns and a digest of the fitted
+coefficients. A prediction covers all of that plus the answer and its
+probability.
+So recomputing any of these from the same inputs reproduces the
+identifier, and changing an input it covers cannot. What they do not do is
+certify that the samples on disk are unchanged since they were read --
+that is what the recording's source_hash is for, and it is only as good as
+the moment it was taken. Nothing here is a database key, and no external
+service was involved.
 
-Every identifier above is a content hash: the same signal through the
-same feature set and the same model yields the same identifier, and a
-changed input cannot keep the old one. Nothing here is a database key,
-and no external service was involved.
-
-as_json(), the form written beside a score:
+as_json(), the form written beside a score (references, not records):
 {
-  "prediction_id": "pred-856899d54649285788710a63cda71435",
+  "prediction_id": "pred-3170fc03adaf1dc3279695288da4842f",
   "subject_id": "P01",
-  "window_start": "1970-01-01T00:00:00+00:00",
-  "window_end": "1970-01-01T00:01:00+00:00",
+  "window_start": "2026-01-01T09:00:00+00:00",
+  "window_end": "2026-01-01T09:01:00+00:00",
   "predicted_class": "0",
   "probability": 2.2163459163476735e-05,
   "feature_ids": [
-    "fvec-26303fe749c4ccc8c4ad89b938cece59"
+    "fvec-77f838d7cce4f67168d78feb46b6d3d2"
   ],
   "source_window_ids": [
-    "win-05c2369ae15d23afe4933c2d3446e827",
-    "win-069059d29c1e220f5de0513c135eca21",
-    "win-0b7dea428b67058efe825357c4f84e7b",
-    "win-faf613121c7ace919dc81faee44c6fe5"
+    "win-254018ee14e97a203981f1dac34994ec",
+    "win-8349d3582dcbe3d4a4e0ae7ef59e6e81",
+    "win-d2ee9cb1b27ab02234800b6a11e26103",
+    "win-ecd0963fae208516c50544ab13e8077c"
   ],
   "source_fact_ids": []
 }

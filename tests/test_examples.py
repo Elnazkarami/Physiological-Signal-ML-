@@ -157,6 +157,26 @@ def test_the_committed_trace_still_matches(produced):
     for field in ("model_name", "model_version", "task", "feature_schema_version"):
         assert trace["artifact"][field] == committed["artifact"][field], REGENERATE
 
+    # The resolved records, compared the same way: structure exactly, and the
+    # measurements that reach a hash to a tolerance.
+    for kind in ("windows", "recordings", "training_runs"):
+        assert sorted(trace["records"][kind]) == sorted(committed["records"][kind]), (
+            f"the {kind} records changed. {REGENERATE}"
+        )
+    assert len(trace["records"]["feature_vectors"]) == len(
+        committed["records"]["feature_vectors"]
+    ), REGENERATE
+    for mine, published in zip(
+        trace["records"]["feature_vectors"].values(),
+        committed["records"]["feature_vectors"].values(),
+        strict=True,
+    ):
+        assert mine["names"] == published["names"], REGENERATE
+        assert mine["source_window_ids"] == published["source_window_ids"], REGENERATE
+        assert mine["values"] == pytest.approx(
+            published["values"], rel=TOLERANCE, abs=TOLERANCE
+        ), REGENERATE
+
 
 # ── what the published chain has to contain ─────────────────────────────────
 
@@ -164,6 +184,63 @@ def test_the_committed_trace_still_matches(produced):
 def test_the_example_runs(produced):
     output, _trace = produced
     assert "[5/5] exporting one fold as traceable predictions" in output
+
+
+def test_every_reference_in_the_published_chain_resolves(produced):
+    """The published file contains the chain, it does not merely name it.
+
+    Checking that an identifier starts with ``win-`` says it is the right
+    shape, not that anything is behind it. This follows every reference --
+    prediction to feature vector, vector to windows, window to recording,
+    artifact to training run -- and fails on the first one that leads nowhere.
+    """
+    from physioml.evaluation.export import unresolved
+
+    _output, trace = produced
+    assert unresolved(trace) == []
+    records = trace["records"]
+    assert records["feature_vectors"] and records["windows"]
+    assert records["recordings"] and records["training_runs"]
+
+
+def test_the_published_timestamps_are_when_the_signal_was_recorded(produced):
+    """Not the Unix epoch, which is what they used to be.
+
+    The example's recordings begin at 09:00 on 2026-01-01, and the export
+    counted the within-recording offset from 1970 instead of reading the
+    recording's own start time -- so every prediction this project emitted was
+    dated 1970 however the signal was actually recorded.
+    """
+    from datetime import datetime
+
+    _output, trace = produced
+    for prediction in trace["predictions"]:
+        start = datetime.fromisoformat(prediction["window_start"])
+        assert start.year == 2026, "the recording's start time was discarded"
+        # And the offset within the recording is carried separately, because it
+        # is what the splits are made on, and it stays true for a dataset that
+        # has no acquisition timestamps at all.
+        assert prediction["window_start_seconds"] >= 0.0
+        assert prediction["window_seconds"] == 60.0
+
+
+def test_a_published_recording_identifies_its_own_samples(produced):
+    """A recording identifier otherwise covers metadata that can stay the same
+    while the signal changes."""
+    _output, trace = produced
+    for recording in trace["records"]["recordings"].values():
+        assert len(recording["source_hash"]) == 64, (
+            "the recording does not fingerprint its samples, so a corrected "
+            "export of the same session would carry the same identifier"
+        )
+
+
+def test_the_published_artifact_identifies_its_fitted_parameters(produced):
+    """Otherwise two models fitted by the same run on the same columns are the
+    same artifact however different their coefficients."""
+    _output, trace = produced
+    assert len(trace["artifact"]["artifact_hash"]) == 64
+    assert trace["artifact"]["model_id"].startswith("model-")
 
 
 def test_every_published_prediction_names_what_produced_it(produced):

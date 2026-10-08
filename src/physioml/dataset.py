@@ -103,6 +103,20 @@ class FeatureTable:
 
     qc_codes: dict[str, int] = field(default_factory=dict)
 
+    row_start_times: np.ndarray | None = None
+    """When each row's window began, as a UTC Unix timestamp.
+
+    Separate from ``window_starts``, which is an offset within the recording
+    and is what any split made in time must use. This is the wall-clock
+    instant, and it is what a prediction states when it says which interval it
+    applies to.
+
+    It was absent, and the export added the offset to the Unix epoch -- so a
+    sleep recording made in 1989 and a WESAD session the reader places at
+    2017-01-01 both produced predictions dated 1970. ``None`` means the builder
+    did not record it, and the export then says the time is an offset rather
+    than claiming a date it does not know."""
+
     window_seconds: float = 0.0
     """How long each row's window is.
 
@@ -251,6 +265,9 @@ class FeatureTable:
             row_feature_vectors=np.array(self.row_feature_vectors),
             row_source_facts=np.array([";".join(f) for f in self.row_source_facts]),
             window_starts=self.window_starts,
+            row_start_times=(
+                self.row_start_times if self.row_start_times is not None else np.zeros(0)
+            ),
             meta=np.array(
                 json.dumps(
                     {
@@ -283,6 +300,11 @@ class FeatureTable:
             ),
             row_source_facts=_split_rows(loaded, "row_source_facts"),
             window_seconds=float(meta.get("window_seconds", 0.0)),
+            row_start_times=(
+                loaded["row_start_times"]
+                if "row_start_times" in loaded and loaded["row_start_times"].size
+                else None
+            ),
             window_starts=(
                 loaded["window_starts"]
                 if "window_starts" in loaded
@@ -437,6 +459,7 @@ def build(
     row_starts: list[float] = []
     row_windows_all: list[tuple[str, ...]] = []
     row_recordings: list[tuple[str, ...]] = []
+    row_start_times: list[float] = []
     codes: dict[str, int] = {}
 
     def count(found: dict[str, tuple[str, ...]]) -> None:
@@ -447,7 +470,7 @@ def build(
 
     for subject_id in chosen:
         by_interval: dict[tuple[float, float], dict[str, Feature]] = {}
-        keeping: dict[tuple[float, float], tuple[str, str, float]] = {}
+        keeping: dict[tuple[float, float], tuple[str, str, float, float]] = {}
         order: list[tuple[float, float]] = []
         # Every window and recording behind each interval, across both devices.
         # A wrist row spans four sensors and a both-device row spans nine, so a
@@ -479,6 +502,7 @@ def build(
                         epoch.label or "",
                         next(iter(epoch.windows.values())).window_id,
                         epoch.start_seconds,
+                        next(iter(epoch.windows.values())).start_time.timestamp(),
                     )
                 by_interval[interval].update({f.qualified_name: f for f in features})
                 windows, recordings = provenance.setdefault(interval, (set(), set()))
@@ -487,7 +511,8 @@ def build(
             del data
 
         for interval in order:
-            label, window_id, started = keeping[interval]
+            label, window_id, started, began = keeping[interval]
+            row_start_times.append(began)
             rows.append(by_interval[interval])
             row_subjects.append(subject_id)
             row_labels.append(label)
@@ -510,6 +535,7 @@ def build(
         feature_set_version=_version_of(device),
         qc_policy_version=_policy_version(device, policy, chest_policy),
         qc_codes=codes,
+        start_times=row_start_times,
         window_seconds=length_seconds,
         min_coverage=min_coverage,
     )
@@ -527,6 +553,7 @@ def assemble(
     feature_set_version: str,
     qc_policy_version: str,
     qc_codes: dict[str, int] | None = None,
+    start_times: Sequence[float] | None = None,
     window_seconds: float = 0.0,
     min_coverage: float = 0.9,
 ) -> FeatureTable:
@@ -574,6 +601,11 @@ def assemble(
         dropped_incomplete=len(rows) - len(complete),
         qc_codes=dict(qc_codes or {}),
         window_seconds=window_seconds,
+        row_start_times=(
+            np.array([start_times[i] for i in complete], dtype=float)
+            if start_times is not None
+            else None
+        ),
         row_windows=tuple(windows[i] for i in complete),
         row_recordings=tuple(recordings[i] for i in complete),
         row_feature_vectors=tuple(

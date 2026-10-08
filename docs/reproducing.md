@@ -5,7 +5,9 @@
 Everything below needs WESAD or Sleep-EDF. One thing does not:
 
 ```bash
-pip install -e ".[signal,ml]"
+git clone https://github.com/Elnazkarami/Physiological-Signal-ML-.git
+cd Physiological-Signal-ML-
+pip install -e ".[signal,ml]"       # Python 3.11 or newer
 python examples/quickstart.py
 ```
 

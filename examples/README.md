@@ -5,7 +5,11 @@
 The whole pipeline on signals generated in the script — no dataset, no
 credentials, no services.
 
+Python 3.11 or newer:
+
 ```bash
+git clone https://github.com/Elnazkarami/Physiological-Signal-ML-.git
+cd Physiological-Signal-ML-
 pip install -e ".[signal,ml]"
 python examples/quickstart.py
 ```
@@ -91,12 +95,46 @@ tracing a prediction back to its inputs, which is what this is for, within-
 environment identity is the property that matters: a prediction and the
 features behind it are hashed by the same process on the same machine.
 
-`prediction_trace.json` holds the full fold — one artifact and 62 predictions.
-Each prediction names its own feature vector, the four signal windows behind it,
-the feature-set version, and the training run and model that produced it. Every
-identifier is a content hash, so the same signal through the same feature set
-and the same model yields the same identifier, and a changed input cannot keep
-the old one. `source_fact_ids` is empty here because these observations did not
-come through CDFS; with a CDFS deployment it carries the facts the features rest
-on, which is what makes a correction cascade — see
+`prediction_trace.json` holds the full fold with every reference resolved:
+one artifact, 62 predictions, the 62 feature vectors behind them, the 248 signal
+windows behind those, the 4 recordings behind the windows, and the training run
+that fitted the model. It contains the chain rather than naming it, and
+`export.unresolved()` returns the references that lead nowhere — empty here, and
+asserted by a test rather than assumed.
+
+(`export.as_json()` is the other shape: predictions and references only, which
+is what belongs beside a score in a results directory where the windows are
+already on disk. The example prints one of those too, labelled.)
+
+### What each identifier actually covers
+
+Every identifier is a content hash, but they are hashes of different things, and
+the distinction matters more than the slogan:
+
+| identifier | covers |
+| --- | --- |
+| `rec-…` | the recording's metadata — subject, device, rate, interval — **and a sha256 of the samples** |
+| `win-…` | the recording, the sample bounds, the interval and the preprocessing |
+| `fvec-…` | the feature values, in a fixed column order, under a named feature set |
+| `model-…` | the model, version, training run, expected columns **and a digest of the fitted coefficients** |
+| `pred-…` | all of the above, plus the predicted class and its probability |
+
+So recomputing any of them from the same inputs reproduces the identifier, and
+changing an input it covers cannot. What they do **not** do is certify that the
+samples on disk are unchanged since they were read: `source_hash` is a
+fingerprint taken at read time and is only as good as that moment. This is a
+provenance chain, not a tamper-evident log.
+
+`source_fact_ids` is empty here because these observations did not come through
+CDFS; with a CDFS deployment it carries the facts the features rest on, which is
+what makes a correction cascade — see
 [docs/architecture.md](../docs/architecture.md).
+
+### Times
+
+Predictions carry both. `window_start`/`window_end` are wall-clock UTC, read
+from the recording's own start time — the example's signals begin at 09:00 on
+2026-01-01, and that is what the published trace says. `window_start_seconds` is
+the offset within the recording, which is what the splits are made on and what
+stays true for a dataset carrying no acquisition timestamps at all (WESAD has
+none; its reader places sessions at a documented fixed origin).
