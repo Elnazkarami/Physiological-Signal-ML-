@@ -111,8 +111,19 @@ jobs:
       # 4. And still produces the output committed beside it. A published
       #    expected output that no longer matches is a record of what the
       #    pipeline used to do, which is worse than publishing none.
+      #
+      #    pytest is installed only now, after the example has already run --
+      #    so the step above is what proves the documented install is enough,
+      #    and this step is free to need a test runner.
+      #
+      #    Not a plain diff. The identifiers are content hashes of feature
+      #    values, and this runner's NumPy agrees with a developer machine's to
+      #    eleven significant figures and not to the last bit, so the hashes
+      #    differ while every measurement matches. The test compares the
+      #    structure exactly and the numbers to a tolerance, and separately
+      #    asserts that two runs *here* are byte-identical, which is the
+      #    guarantee the provenance design actually makes.
       - name: Verify the committed output has not drifted
         run: |
-          diff -u examples/expected/quickstart_output.txt /tmp/output.txt
-          diff -u examples/expected/prediction_trace.json /tmp/trace.json
-          echo "the published output still matches what the example produces"
+          pip install pytest
+          pytest tests/test_examples.py -q

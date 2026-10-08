@@ -65,10 +65,31 @@ python examples/quickstart.py --write-trace examples/expected/prediction_trace.j
     > examples/expected/quickstart_output.txt
 ```
 
-The run is seeded, so the output is byte-for-byte reproducible and
-`tests/test_examples.py` asserts that the committed files still match what the
-script produces. If a change to windowing, quality control, feature extraction
-or the export alters the chain, that test fails and these files are the diff.
+The run is seeded, so on any one machine it is byte-for-byte reproducible, and
+`tests/test_examples.py` asserts that. If a change to windowing, quality
+control, feature extraction or the export alters the chain, that test fails.
+
+### The identifiers will not match on your machine, and that is correct
+
+Run this yourself and the window and recording identifiers will be the ones
+committed here, while `prediction_id` and the feature-vector id will differ.
+
+Those identifiers are content hashes of feature values, and feature values are
+floating-point results of filtering and spectral estimation. Different builds
+of NumPy, SciPy or a BLAS agree on them to about eleven significant figures and
+disagree in the last bits — this project's CI produced
+`2.2163459163476735e-05` where the machine that committed these files produced
+`2.2163459163323433e-05`. A hash has no notion of nearly. Window and recording
+identifiers are stable because they hash metadata — the subject, the device,
+the interval, the sampling rate — and nothing measured.
+
+So the guarantee is this: **identical within an environment, equal to a
+tolerance across environments.** That is what content-hashed provenance over
+floating-point measurements can offer, and the tests assert exactly it rather
+than a stronger claim that would fail on the second machine to try it. For
+tracing a prediction back to its inputs, which is what this is for, within-
+environment identity is the property that matters: a prediction and the
+features behind it are hashed by the same process on the same machine.
 
 `prediction_trace.json` holds the full fold — one artifact and 62 predictions.
 Each prediction names its own feature vector, the four signal windows behind it,
