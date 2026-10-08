@@ -98,6 +98,15 @@ device that distinction decides what the result means. So each signal was scored
 and then removed from the whole — two different questions, because a sensor can do well
 alone and still cost nothing when dropped, if another one carries the same information.
 
+![What each wrist sensor contributes](images/wesad-ablation.png)
+
+The removal half of that, measured the only way it can honestly be measured: paired within
+each participant, with a bootstrap interval resampling participants rather than windows.
+Drawn by `scripts/figure_ablation.py` from the JSON `scripts/compare.py` wrote
+([`data/wesad_ablation.json`](data/wesad_ablation.json)) — the figure reads a measurement
+and does not recompute one, so it cannot drift from the tables below.
+[How to redraw it](reproducing.md#redrawing-the-figure).
+
 Logistic regression, same folds throughout:
 
 | features | n | bal. accuracy | AUC | worst subject |

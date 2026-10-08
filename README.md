@@ -1,53 +1,61 @@
 # PhysioML
 
-Traceable multimodal physiological and neural inference — a companion machine-learning
-layer for the [Clinical Data Fabric System](https://github.com/Elnazkarami/clinical-data-fabric-).
+**Traceable machine learning on physiological and neural signals.** Raw sensor recordings
+in, subject-wise validated predictions out, and every prediction able to name the feature
+vector, signal windows, preprocessing, quality verdict and model version that produced it.
 
 **The question this exists to answer:** can a physiological or neural prediction stay
 traceable from the model output all the way back to the exact sensor windows,
 transformations, features, model version, and source observations that produced it?
 
-**Where that stands today.** The chain is closed for model output: a fitted model exports
-a `ModelArtifact` and one `Prediction` per scored row, each naming its own feature vector,
-the windows behind it and the CDFS facts those rest on — written back, and read as a fact
-whose lineage reaches the original observations. That path is tested against a running
-CDFS deployment with a model actually fitted on a feature table, not a constructed
-example.
+Two datasets, two tasks, one pipeline — wrist and chest sensors for stress detection on
+**WESAD** (15 participants), and a scalp montage for five-stage sleep scoring on
+**Sleep-EDF Expanded** (76 participants, with a second cohort of 22 held out for external
+validation).
 
-What remains is reach rather than architecture: the published WESAD and sleep scores were
-produced before the export path existed, so they are reproducible but were not themselves
-emitted through it.
+## Try it in thirty seconds
+
+No dataset, no credentials, no services. Synthetic signals, the real pipeline:
+
+```bash
+pip install -e ".[signal,ml]"
+python examples/quickstart.py
+```
+
+It windows a generated recording, runs quality control, extracts features, fits a model
+under subject-wise validation, and prints the provenance chain behind one prediction —
+[expected output](examples/). The scores it prints are from synthetic data and mean
+nothing; the [measured results](#results) below are from the real cohorts.
+
+**This runs standalone.** The library has **no runtime dependencies at all** in its
+provenance core — no NumPy, no SciPy — and CI asserts it on every commit by installing
+without them. Integration with the [Clinical Data Fabric System](https://github.com/Elnazkarami/clinical-data-fabric-)
+is [optional and isolated](#traceability-closed-and-tested) to one subpackage; nothing in
+the pipeline, the evaluation or the prediction export imports it.
 
 > **Status: peripheral and neural, both working end to end.** Provenance spine; quality
 > control and features for a wrist band, a chest strap and a sleep montage; subject-wise
-> evaluation, calibration, ablation and paired comparison; and a closed cascade with CDFS.
-> Every claim here is implemented and covered by a test, or listed under *Not built*.
-> Nothing is aspirational description of code that does not exist.
+> evaluation, calibration, ablation and paired comparison. Every claim here is implemented
+> and covered by a test, or listed under *Not built*. Nothing is aspirational description
+> of code that does not exist.
 
 ---
-
-Two datasets, two tasks, one pipeline:
-
-- **WESAD** — wrist and chest sensors, stress against baseline, 15 participants.
-- **Sleep-EDF Expanded** — a scalp montage, five-stage sleep scoring, 76 participants,
-  with a second cohort of 22 held out for external validation.
 
 ## What is in it
 
 | | |
 | --- | ---: |
-| `core` — provenance: recordings, windows, features, runs, artifacts, predictions | 945 lines |
+| `core` — provenance: recordings, windows, features, runs, artifacts, predictions | 982 lines |
 | `peripheral` — wrist and chest: windowing, quality control, preprocessing, 63 features | 1,844 |
-| `neural` — sleep EEG: spectra, Hjorth parameters, quality control, 48 features | 508 |
-| `io` — WESAD read from its archive, and a from-scratch EDF/EDF+ reader | 770 |
-| `evaluation` — splits, metrics, ablation, coverage, paired comparison, personalisation | 1,479 |
-| `models` — five classical models, and a recurrent one that reads a night as a sequence | 604 |
-| `cdfs` — the round trip with the provenance engine | 394 |
-| **tests** | **4,456 lines, 350 tests** |
+| `neural` — sleep EEG: spectra, Hjorth parameters, quality control, 48 features | 707 |
+| `io` — WESAD read from its archive, and a from-scratch EDF/EDF+ reader | 836 |
+| `evaluation` — splits, metrics, ablation, coverage, paired comparison, personalisation | 1,779 |
+| `models` — five classical models, and a recurrent one that reads a night as a sequence | 599 |
+| `cdfs` — *optional* round trip with an external provenance engine | 394 |
+| [`examples`](examples/) — the whole pipeline on synthetic signals, with its committed output | 388 |
+| **tests** | **5,947 lines, 418 tests** |
 
-**The provenance core has no runtime dependencies at all** — no NumPy, no SciPy — and CI
-asserts it on every commit by installing without them and running the core tests against
-that. The signal processing is written here rather than imported: band-passing, spectral
+**The signal processing is written here rather than imported:** band-passing, spectral
 rate estimation, R-peak detection, an EDF reader. The EDF reader is
 [cross-checked](docs/reproducing.md) against the reference C library on the real
 recordings, because a reader and a writer built by one person agree with each other about
@@ -78,9 +86,20 @@ rows are 76 participants, one night each, held out one at a time.
 
 ## What the ablations show
 
+![What each wrist sensor contributes to WESAD stress detection](docs/images/wesad-ablation.png)
+
+*Drawn by `scripts/figure_ablation.py` from the JSON `scripts/compare.py` wrote
+([`docs/data/wesad_ablation.json`](docs/data/wesad_ablation.json)), so the figure and the
+text cannot disagree. Two of the four intervals include zero; they are drawn the same
+size as the others, because an effect nobody established looks identical to one that
+matters until the interval is shown.*
+
 **Movement carries much of the WESAD stress signal.** The accelerometer alone reaches
 0.855 balanced accuracy against 0.898 for all 28 features, and removing it costs **0.054,
-95% interval [−0.093, −0.016]** across participants. Signal quality alone — twelve columns
+95% interval [−0.093, −0.016]** across participants. Skin conductance costs a comparable
+**0.045, [−0.088, −0.008]**. The optical pulse and skin temperature cost nothing the
+interval can distinguish from zero — which is not that they carry no signal, but that
+fifteen participants cannot establish it. Signal quality alone — twelve columns
 describing only how noisy the recording was — reaches **0.663**, because a third of stress
 windows are flagged for motion against one per cent of baseline windows. The stress
 condition has participants standing and talking, so the protocol is legible in the
@@ -133,6 +152,23 @@ passed, and why each one is necessary on this kind of data.
 
 ## Traceability, closed and tested
 
+Every scored row exports a `Prediction` naming its own feature vector, the signal windows
+behind it, the preprocessing applied, the quality verdict and the `ModelArtifact` that
+produced it — each identified by a content hash, so the same inputs and the same model
+yield the same identifier and a changed input cannot keep the old one. The export refuses
+a feature table that does not carry per-row identifiers, because a prediction that cannot
+name what produced it is the thing this exists to prevent.
+
+**This works with no external services.** `python examples/quickstart.py` prints a full
+chain from synthetic signals. → [architecture](docs/architecture.md)
+
+### Optional: cascading corrections through CDFS
+
+Local provenance answers *what produced this prediction*. It does not answer *what happens
+when an input is corrected after the fact* — that needs a store that versions the
+observations themselves. The `cdfs` subpackage closes that loop against the
+[Clinical Data Fabric System](https://github.com/Elnazkarami/clinical-data-fabric-):
+
 ```
 weight corrected  →  CDFS supersedes the BMI it derived
                   →  impact report: the prediction is stale, recompute it
@@ -142,7 +178,8 @@ weight corrected  →  CDFS supersedes the BMI it derived
 ```
 
 Asserted against a running CDFS deployment rather than a mock — including that a
-correction leaves exactly one prediction in force afterwards. → [architecture and the
+correction leaves exactly one prediction in force afterwards. Those tests skip without a
+CDFS checkout; everything else in the suite runs without one. → [architecture and the
 loop](docs/architecture.md)
 
 ## Limitations
@@ -168,6 +205,7 @@ sleep in an unrestricted recording.
 
 | | |
 | --- | --- |
+| [Run it](examples/) | The pipeline end to end on synthetic signals, and its committed output |
 | [How the results were validated](docs/validation.md) | The checks behind every number |
 | [Stress on WESAD](docs/wesad-stress.md) | First result, and what the model is reading |
 | [Calibration](docs/calibration.md) | Whether the probabilities mean anything, and a negative result |

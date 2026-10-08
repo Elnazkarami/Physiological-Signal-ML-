@@ -12,6 +12,8 @@ Requires the ml extra: ``pip install -e ".[ml]"``.
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
 
 from physioml.dataset import FeatureTable
 from physioml.evaluation.ablation import channel_groups, device_groups, signal_groups
@@ -45,6 +47,15 @@ def main() -> None:
         default="signal",
         choices=("signal", "device", "channel"),
         help="what a group is: one sensor, one whole device, or one recording channel",
+    )
+    parser.add_argument(
+        "--json",
+        type=Path,
+        metavar="PATH",
+        help="also write the comparison as JSON, including every per-participant "
+        "difference. What the figure in docs/images is drawn from, so that the "
+        "figure is a view of a measurement rather than a second place numbers "
+        "are typed in by hand.",
     )
     args = parser.parse_args()
 
@@ -87,6 +98,42 @@ def main() -> None:
     print()
     for difference in found:
         print(f"  {difference.verdict()}")
+
+    if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
+        args.json.write_text(
+            json.dumps(
+                {
+                    "table": args.table,
+                    "model": args.model,
+                    "metric": args.metric,
+                    "by": args.by,
+                    "positive": args.positive,
+                    "rows": len(loaded),
+                    "subjects": len(loaded.subject_ids),
+                    "baseline": whole.summary.get(f"{args.metric}_mean"),
+                    "comparisons": [
+                        {
+                            "removed": d.right.removeprefix("without "),
+                            "metric": d.metric,
+                            "mean": d.mean,
+                            "interval": list(d.interval),
+                            "crosses_zero": d.crosses_zero,
+                            "better": d.better,
+                            "worse": d.worse,
+                            "tied": d.tied,
+                            "n": d.n,
+                            "per_subject": d.per_subject,
+                            "verdict": d.verdict(),
+                        }
+                        for d in found
+                    ],
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        print(f"\nwrote {args.json}")
 
 
 if __name__ == "__main__":

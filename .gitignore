@@ -2,7 +2,10 @@ __pycache__/
 *.pyc
 .DS_Store
 .coverage
-data/
+# Datasets, at the root only. Not anchored before, which silently excluded
+# docs/data/ -- the saved measurements the figures are drawn from, which have
+# to be in the repository for the figures to be checkable.
+/data/
 *.edf
 *.fif
 

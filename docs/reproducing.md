@@ -1,5 +1,29 @@
 # Installing and reproducing every number
 
+## Without either dataset
+
+Everything below needs WESAD or Sleep-EDF. One thing does not:
+
+```bash
+pip install -e ".[signal,ml]"
+python examples/quickstart.py
+```
+
+That runs the whole pipeline — windowing, quality control, feature extraction,
+subject-wise evaluation and the provenance export — on signals the script generates, and
+prints the chain behind one prediction. Its committed output is in
+[`examples/expected/`](../examples/), regenerated with:
+
+```bash
+python examples/quickstart.py --write-trace examples/expected/prediction_trace.json \
+    > examples/expected/quickstart_output.txt
+```
+
+`tests/test_examples.py` asserts the committed files still match what the script produces,
+and the `quickstart` job in CI runs the same check on a clean machine with only the two
+extras above installed — no test tooling, no CDFS. **The scores it prints are from
+synthetic data and describe the generator, not a result.**
+
 ## Where the datasets go
 
 Neither dataset can be redistributed, so the tests and scripts ask where yours are:
@@ -99,6 +123,22 @@ built under, and for every fold: which participants trained and which was held o
 split strategy and seed, and the identifier of the training run. A results table without
 one is an assertion — and the moment any table is rebuilt, the question of whether two
 numbers were computed on the same thing becomes the only one that matters.
+
+## Redrawing the figure
+
+The figure in the README is drawn from saved output, never from numbers typed into a
+plotting script:
+
+```bash
+pip install -e ".[figures]"
+python scripts/compare.py wesad_features.npz --json docs/data/wesad_ablation.json
+python scripts/figure_ablation.py docs/data/wesad_ablation.json \
+    --output docs/images/wesad-ablation.png
+```
+
+The first command is the measurement and prints the same table the README quotes; the
+second only reads its JSON. Nothing in the library imports matplotlib, so a measurement
+never acquires a plotting dependency in order to be made.
 
 ## Checking the EDF reader against another implementation
 
