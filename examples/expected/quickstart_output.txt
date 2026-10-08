@@ -1,0 +1,89 @@
+The whole pipeline on signals generated here, in one file and no downloads.
+
+    python examples/quickstart.py
+
+WESAD must be requested from its authors and Sleep-EDF Expanded is several
+gigabytes, so neither can stand behind an example someone runs to find out
+what this library does. The signals below are synthesised instead. Everything
+operating on them -- the windowing, the quality control, the feature
+extractors, the subject-wise splits, the metrics and the provenance export --
+is the same code the measured results in the README came from, and the only
+thing replaced is the recording.
+
+THE SCORES THIS PRINTS ARE MEANINGLESS. They describe a difference this script
+put into the data on purpose. They are printed because the shape of the output
+is the point, and they are labelled at every step so no one lifts them into a
+slide. The measured results are in docs/ and in the README.
+
+==========================================================================
+
+[1/5] generating six participants, seven minutes each
+      6 participants, 42 minutes of signal
+
+[2/5] windowing, quality control, feature extraction
+      372 labelled windows, 66 dropped for spanning two conditions
+      quality control flagged: {'BVP:motion': 88}
+
+[3/5] assembling the table
+      372 rows x 28 features, 6 subjects (baseline 186, stress 186)
+      every row names its feature vector, 4 signal windows and 4 recordings
+
+[4/5] leave-one-participant-out evaluation
+      NOTE: synthetic data. stress blocks are generated with a pulse 9
+      bpm faster, skin conductance 0.7 uS higher, skin temperature 0.2
+      C lower and three times the movement -- each smaller than the
+      spread this script puts between participants, so the task is
+      separable but not trivially. These numbers describe the
+      generator, not a result.
+      balanced accuracy 0.793 ±0.148  AUC 1.000  worst participant 0.500
+      no participant appears on both sides of any split
+      note: P04 scores 0.500 at AUC 1.000 -- every stressed window
+      ranked above every calm one, and all of them labelled the same
+      way. A threshold, not a failure to learn.
+
+[5/5] exporting one fold as traceable predictions
+      held out P01, 62 predictions exported
+
+--- the chain behind one prediction --------------------------------------
+prediction      pred-856899d54649285788710a63cda71435
+  participant   P01
+  window        00:00:00 to 00:01:00
+  says          '0' (not stress) at p=0.000
+  from vector   fvec-26303fe749c4ccc8c4ad89b938cece59
+    computed over 28 features, set synthetic-wrist-1
+  over windows  win-05c2369ae15d23afe4933c2d3446e827, win-069059d29c1e220f5de0513c135eca21, win-0b7dea428b67058efe825357c4f84e7b, win-faf613121c7ace919dc81faee44c6fe5
+    of recordings rec-1e754e27467e938d085b43fcade637d0, rec-585f72ce6d7812fe20a9916098975d7e, rec-a2314fcd62c96d2829188b2cb9a53932, rec-d2d98a945aa252e1483b65385b2127bb
+  by artifact   model-12939e4321d0d9e148e6e2a47b851da7
+    model       logistic 1.0, fitted by run trun-3d5e6a1c12a7165c46b37df8b69c6136
+    trained on  5 participants, holding out P01
+  source facts  none -- not sourced through CDFS
+--------------------------------------------------------------------------
+
+Every identifier above is a content hash: the same signal through the
+same feature set and the same model yields the same identifier, and a
+changed input cannot keep the old one. Nothing here is a database key,
+and no external service was involved.
+
+as_json(), the form written beside a score:
+{
+  "prediction_id": "pred-856899d54649285788710a63cda71435",
+  "subject_id": "P01",
+  "window_start": "1970-01-01T00:00:00+00:00",
+  "window_end": "1970-01-01T00:01:00+00:00",
+  "predicted_class": "0",
+  "probability": 2.2163459163476735e-05,
+  "feature_ids": [
+    "fvec-26303fe749c4ccc8c4ad89b938cece59"
+  ],
+  "source_window_ids": [
+    "win-05c2369ae15d23afe4933c2d3446e827",
+    "win-069059d29c1e220f5de0513c135eca21",
+    "win-0b7dea428b67058efe825357c4f84e7b",
+    "win-faf613121c7ace919dc81faee44c6fe5"
+  ],
+  "source_fact_ids": []
+}
+
+==========================================================================
+Synthetic data. The scores above are a property of this script.
+Measured results: docs/wesad-stress.md and docs/sleep.md

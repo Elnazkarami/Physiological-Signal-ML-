@@ -49,6 +49,11 @@ jobs:
       - name: Core provenance tests, without a scientific stack
         run: pytest tests/test_core.py -q
 
+      - name: The standalone claims the README makes
+        # Here rather than in the full run because this is the only environment
+        # where "the core needs no third-party package" can actually fail.
+        run: pytest tests/test_standalone.py -q
+
       # ── everything else, which does need one ────────────────────────────────
       - name: Install the signal, ML, reference and deep extras
         # deep too, or the sequence tests skip in CI and the recurrent model
@@ -56,11 +61,58 @@ jobs:
         run: pip install -e ".[dev,signal,ml,reference,deep]"
 
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests examples scripts
       - name: Format
-        run: ruff format --check src tests
+        run: ruff format --check src tests examples scripts
       - name: Types
         run: mypy
 
       - name: Full test suite
         run: coverage run -m pytest -q && coverage report
+
+  # ── what a visitor gets ────────────────────────────────────────────────────
+  # A separate job on a clean runner, installing only what the README tells
+  # people to install -- no dev extras, no test tooling, no CDFS. The repository
+  # is about traceable prediction, and until this existed nobody could see that
+  # without applying to WESAD's authors for a dataset or downloading five
+  # gigabytes of sleep recordings. This asserts the published entry point still
+  # works for someone who has neither.
+  quickstart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 1. The documented command, exactly as the README gives it, and nothing
+      #    else. If the example has come to need something outside these
+      #    extras, this is where it fails.
+      - name: Install what the README says to install
+        run: python -m pip install --upgrade pip && pip install -e ".[signal,ml]"
+
+      # 2. No CDFS, and no way to reach one. The traceability export must not
+      #    be conditional on a private system being available.
+      - name: Verify the external provenance engine is absent
+        run: |
+          python - <<'PY'
+          import importlib.util, sys
+          if importlib.util.find_spec("cdfs") is not None:
+              sys.exit("cdfs is installed; this job would prove nothing")
+          print("cdfs absent, as required")
+          PY
+
+      # 3. The example runs to completion and exports a traceable prediction.
+      - name: Run the published example
+        run: |
+          python examples/quickstart.py --write-trace /tmp/trace.json > /tmp/output.txt
+          tail -4 /tmp/output.txt
+
+      # 4. And still produces the output committed beside it. A published
+      #    expected output that no longer matches is a record of what the
+      #    pipeline used to do, which is worse than publishing none.
+      - name: Verify the committed output has not drifted
+        run: |
+          diff -u examples/expected/quickstart_output.txt /tmp/output.txt
+          diff -u examples/expected/prediction_trace.json /tmp/trace.json
+          echo "the published output still matches what the example produces"

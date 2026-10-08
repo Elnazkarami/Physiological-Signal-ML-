@@ -29,6 +29,12 @@ dev    = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11", "coverage>=7.6"]
 # broke that job in one commit, which is what the job is for.
 reference = ["pyedflib>=0.1.30"]
 
+# Drawing the figures in docs/images from the JSON the comparison scripts
+# write. Separate because nothing in the library imports it: a figure is a
+# view of a measurement that already happened, and the measurement must not
+# acquire a plotting dependency to be made.
+figures = ["matplotlib>=3.8"]
+
 # The recurrent stage classifier. Separate because it is the only thing here
 # that needs it, and because the classical results should stay runnable without
 # a deep-learning install.
@@ -59,7 +65,7 @@ ignore = ["RET504", "SIM108", "UP042"]
 # stubs as 3.11 on a 3.13 runner, where numpy 2.x writes `type` statements, and
 # the job failed on a syntax error in a dependency's typing rather than on
 # anything in this package.
-files = ["src/physioml"]
+files = ["src/physioml", "examples"]
 ignore_missing_imports = true
 no_implicit_optional = true
 
