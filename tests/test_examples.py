@@ -65,6 +65,12 @@ REGENERATE = (
 #: the arithmetic.
 MEASURED_ID = re.compile(r"\b(pred|fvec|model|trun|win|rec)-[0-9a-f]{32}\b")
 
+#: A bare digest, such as the printed sha256 of the fitted coefficients. No
+#: prefix to match on, and masking the identifiers above left its hex letters
+#: in place while turning its digits into the mask character, so two machines
+#: differed in the "shape" of a line that was the same shape.
+DIGEST = re.compile(r"\b[0-9a-f]{16,64}\b")
+
 #: Any number, so that text can be compared with the arithmetic held apart.
 NUMBER = re.compile(r"-?\d+\.\d+(?:[eE][-+]?\d+)?|-?\d+")
 
@@ -91,13 +97,18 @@ def produced(tmp_path_factory) -> tuple[str, dict[str, Any]]:
     return output, parsed
 
 
+def masked(text: str) -> str:
+    """The text with every content hash replaced by a placeholder."""
+    return DIGEST.sub("<digest>", MEASURED_ID.sub(r"\1-<id>", text))
+
+
 def shape_of(text: str) -> str:
     """The text with identifiers masked and numbers removed."""
-    return NUMBER.sub("#", MEASURED_ID.sub(r"\1-<id>", text))
+    return NUMBER.sub("#", masked(text))
 
 
 def numbers_in(text: str) -> list[float]:
-    return [float(n) for n in NUMBER.findall(MEASURED_ID.sub("", text))]
+    return [float(n) for n in NUMBER.findall(masked(text).replace("<digest>", ""))]
 
 
 # ── the guarantee that actually holds ───────────────────────────────────────
