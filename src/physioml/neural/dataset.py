@@ -198,6 +198,7 @@ def build_sleep(
         values=np.array([[rows[i][n].value for n in names] for i in complete], dtype=float),
         subjects=np.array([row_subjects[i] for i in complete]),
         labels=np.array([row_labels[i] for i in complete]),
+        window_seconds=EPOCH_SECONDS,
         window_ids=tuple(row_windows[i] for i in complete),
         row_windows=tuple(row_windows_all[i] for i in complete),
         row_recordings=tuple(row_recordings[i] for i in complete),

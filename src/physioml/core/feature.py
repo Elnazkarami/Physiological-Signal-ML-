@@ -102,15 +102,31 @@ class FeatureVector:
     label: str | None = None
 
     @classmethod
-    def of(cls, features: list[Feature], *, window_id: str, label: str | None = None):
-        """Build a vector from features, ordered by name so it is reproducible."""
+    def of(
+        cls,
+        features: list[Feature],
+        *,
+        window_id: str,
+        label: str | None = None,
+        feature_set_version: str | None = None,
+    ):
+        """Build a vector from features, ordered by name so it is reproducible.
+
+        Features spanning more than one feature set are refused unless
+        ``feature_set_version`` names the combination. A row of fused wrist and
+        chest features genuinely comes from two algorithms, and the table that
+        holds it records that as one composite version -- but the refusal is
+        what catches an accidental mixture, so the caller has to say it meant
+        this rather than have it inferred from the fact that it happened.
+        """
         if not features:
             raise ValueError("a feature vector needs at least one feature")
         versions = {f.feature_set_version for f in features}
-        if len(versions) > 1:
+        if len(versions) > 1 and feature_set_version is None:
             raise ValueError(
                 f"features span feature-set versions {sorted(versions)}; mixing them "
-                "makes the vector untraceable to a single algorithm"
+                "makes the vector untraceable to a single algorithm. Pass "
+                "feature_set_version to name the combination if that is intended"
             )
         subjects = {f.subject_id for f in features}
         if len(subjects) > 1:
@@ -122,7 +138,7 @@ class FeatureVector:
             names=tuple(f.qualified_name for f in ordered),
             values=tuple(float(f.value) for f in ordered),
             feature_ids=tuple(f.feature_id for f in ordered),
-            feature_set_version=versions.pop(),
+            feature_set_version=feature_set_version or versions.pop(),
             label=label,
         )
 

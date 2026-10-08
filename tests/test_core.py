@@ -216,6 +216,46 @@ def test_a_vector_refuses_to_mix_feature_set_versions():
         FeatureVector.of([feature(win), other], window_id=win.window_id)
 
 
+def test_a_named_combination_of_feature_sets_is_allowed():
+    """A fused row legitimately comes from two algorithms.
+
+    Wrist and chest features in one row span two feature sets, and the table
+    holding them records that as one composite version. The refusal above is
+    for mixing nobody declared; naming the combination is the declaration.
+    """
+    rec = recording()
+    win = window(rec)
+    other = Feature.create(
+        subject_id="S017",
+        name="beta_power",
+        value=3.0,
+        feature_set="eeg-spectral",
+        feature_set_version="1.0",
+        source_window_ids=(win.window_id,),
+        channel="Fp1",
+    )
+    vector = FeatureVector.of(
+        [feature(win), other],
+        window_id=win.window_id,
+        feature_set_version="peripheral-1.3+eeg-spectral-1.0",
+    )
+    assert vector.feature_set_version == "peripheral-1.3+eeg-spectral-1.0"
+    assert len(vector.names) == 2
+
+
+def test_a_declared_combination_still_identifies_what_went_into_it():
+    """Naming the combination must not make the identity less specific."""
+    rec = recording()
+    win = window(rec)
+    one = FeatureVector.of(
+        [feature(win)], window_id=win.window_id, feature_set_version="combined-1"
+    )
+    two = FeatureVector.of(
+        [feature(win)], window_id=win.window_id, feature_set_version="combined-2"
+    )
+    assert one.vector_id != two.vector_id
+
+
 # ── training runs: the leakage guarantee ────────────────────────────────────
 
 

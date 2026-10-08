@@ -27,7 +27,7 @@ from typing import Any
 
 import numpy as np
 
-from physioml.core.feature import Feature
+from physioml.core.feature import Feature, FeatureVector
 from physioml.io.wesad import WESAD
 from physioml.peripheral.chest import (
     CHEST_EXTRACTORS,
@@ -102,6 +102,16 @@ class FeatureTable:
     """Rows discarded for a missing feature, rather than imputed."""
 
     qc_codes: dict[str, int] = field(default_factory=dict)
+
+    window_seconds: float = 0.0
+    """How long each row's window is.
+
+    Needed because a prediction states the interval it applies to, and that
+    interval is a property of how the table was built. It was absent, and the
+    export assumed thirty seconds -- right for a sleep epoch and wrong by half
+    for the sixty-second windows every WESAD result uses, so every exported
+    peripheral prediction named an interval ending thirty seconds early. Zero
+    means a table built before this was recorded."""
 
     row_windows: tuple[tuple[str, ...], ...] = ()
     """Every window each row was computed from.
@@ -248,6 +258,7 @@ class FeatureTable:
                         "qc_policy_version": self.qc_policy_version,
                         "dropped_incomplete": self.dropped_incomplete,
                         "qc_codes": self.qc_codes,
+                        "window_seconds": self.window_seconds,
                     }
                 )
             ),
@@ -271,6 +282,7 @@ class FeatureTable:
                 else ()
             ),
             row_source_facts=_split_rows(loaded, "row_source_facts"),
+            window_seconds=float(meta.get("window_seconds", 0.0)),
             window_starts=(
                 loaded["window_starts"]
                 if "window_starts" in loaded
@@ -423,6 +435,8 @@ def build(
     row_labels: list[str] = []
     row_windows: list[str] = []
     row_starts: list[float] = []
+    row_windows_all: list[tuple[str, ...]] = []
+    row_recordings: list[tuple[str, ...]] = []
     codes: dict[str, int] = {}
 
     def count(found: dict[str, tuple[str, ...]]) -> None:
@@ -435,6 +449,11 @@ def build(
         by_interval: dict[tuple[float, float], dict[str, Feature]] = {}
         keeping: dict[tuple[float, float], tuple[str, str, float]] = {}
         order: list[tuple[float, float]] = []
+        # Every window and recording behind each interval, across both devices.
+        # A wrist row spans four sensors and a both-device row spans nine, so a
+        # prediction naming only the first would be traceable to one signal and
+        # silent about the rest.
+        provenance: dict[tuple[float, float], tuple[set[str], set[str]]] = {}
 
         for which, extract_one, this_policy in (
             ("wrist", _wrist, policy),
@@ -462,6 +481,9 @@ def build(
                         epoch.start_seconds,
                     )
                 by_interval[interval].update({f.qualified_name: f for f in features})
+                windows, recordings = provenance.setdefault(interval, (set(), set()))
+                windows.update(w.window_id for w in epoch.windows.values())
+                recordings.update(w.recording_id for w in epoch.windows.values())
             del data
 
         for interval in order:
@@ -471,9 +493,52 @@ def build(
             row_labels.append(label)
             row_windows.append(window_id)
             row_starts.append(started)
+            windows, recordings = provenance[interval]
+            row_windows_all.append(tuple(sorted(windows)))
+            row_recordings.append(tuple(sorted(recordings)))
         if progress:
             print(f"  {subject_id}: {len(rows)} rows so far", flush=True)
 
+    return assemble(
+        rows,
+        subjects=row_subjects,
+        labels=row_labels,
+        window_ids=row_windows,
+        starts=row_starts,
+        windows=row_windows_all,
+        recordings=row_recordings,
+        feature_set_version=_version_of(device),
+        qc_policy_version=_policy_version(device, policy, chest_policy),
+        qc_codes=codes,
+        window_seconds=length_seconds,
+        min_coverage=min_coverage,
+    )
+
+
+def assemble(
+    rows: Sequence[dict[str, Feature]],
+    *,
+    subjects: Sequence[str],
+    labels: Sequence[str],
+    window_ids: Sequence[str],
+    starts: Sequence[float],
+    windows: Sequence[tuple[str, ...]],
+    recordings: Sequence[tuple[str, ...]],
+    feature_set_version: str,
+    qc_policy_version: str,
+    qc_codes: dict[str, int] | None = None,
+    window_seconds: float = 0.0,
+    min_coverage: float = 0.9,
+) -> FeatureTable:
+    """Extracted features into a table that still names what produced each row.
+
+    Separate from :func:`build` because the archive is not the only source of
+    epochs. Anything that can window a recording and extract features from it
+    -- a second dataset, a synthetic recording in ``examples/quickstart.py`` --
+    reaches a table the same way, rather than assembling one by hand and
+    arriving at something that looks like a ``FeatureTable`` and has forgotten
+    the row provenance a prediction needs.
+    """
     if not rows:
         raise ValueError("no labelled windows produced any features")
 
@@ -500,12 +565,25 @@ def build(
     return FeatureTable(
         feature_names=tuple(names),
         values=values,
-        subjects=np.array([row_subjects[i] for i in complete]),
-        labels=np.array([row_labels[i] for i in complete]),
-        window_ids=tuple(row_windows[i] for i in complete),
-        window_starts=np.array([row_starts[i] for i in complete], dtype=float),
-        feature_set_version=_version_of(device),
-        qc_policy_version=_policy_version(device, policy, chest_policy),
+        subjects=np.array([subjects[i] for i in complete]),
+        labels=np.array([labels[i] for i in complete]),
+        window_ids=tuple(window_ids[i] for i in complete),
+        window_starts=np.array([starts[i] for i in complete], dtype=float),
+        feature_set_version=feature_set_version,
+        qc_policy_version=qc_policy_version,
         dropped_incomplete=len(rows) - len(complete),
-        qc_codes=codes,
+        qc_codes=dict(qc_codes or {}),
+        window_seconds=window_seconds,
+        row_windows=tuple(windows[i] for i in complete),
+        row_recordings=tuple(recordings[i] for i in complete),
+        row_feature_vectors=tuple(
+            FeatureVector.of(
+                [rows[i][n] for n in names],
+                window_id=window_ids[i],
+                # The table's own version, which for a fused row names the pair
+                # of feature sets behind it rather than either one alone.
+                feature_set_version=feature_set_version,
+            ).vector_id
+            for i in complete
+        ),
     )

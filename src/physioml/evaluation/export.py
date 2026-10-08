@@ -83,6 +83,11 @@ def predictions_for(
             f"{len(predicted)} predictions for {len(rows)} rows; they must correspond"
         )
 
+    # The table knows how long its windows are; the argument is the fallback for
+    # one built before that was recorded. Taking the argument first meant every
+    # sixty-second WESAD prediction claimed a thirty-second interval.
+    length = table.window_seconds if table.window_seconds > 0 else epoch_seconds
+
     when = created_at or datetime.now(UTC)
     made: list[Prediction] = []
     for position, row in enumerate(rows):
@@ -95,7 +100,7 @@ def predictions_for(
                 subject_id=str(table.subjects[row]),
                 task=artifact.task,
                 window_start=start,
-                window_end=start + timedelta(seconds=epoch_seconds),
+                window_end=start + timedelta(seconds=length),
                 predicted_class=str(predicted[position]),
                 probability=(
                     float(probability[position]) if probability is not None else None
@@ -125,6 +130,7 @@ def export_fold(
     model_version: str,
     probability: np.ndarray | None = None,
     study_id: str = "PHYSIOML",
+    epoch_seconds: float = 30.0,
 ) -> tuple[ModelArtifact, list[Prediction]]:
     """The artifact and the predictions for one fold, together."""
     artifact = artifact_of(run, table, model_name=model_name, model_version=model_version)
@@ -135,6 +141,7 @@ def export_fold(
         artifact=artifact,
         probability=probability,
         study_id=study_id,
+        epoch_seconds=epoch_seconds,
     )
 
 
@@ -142,6 +149,11 @@ def as_json(artifact: ModelArtifact, predictions: Sequence[Prediction]) -> dict[
     """A serialisable record of one fold's output, for writing beside a score."""
     return {
         "artifact": {
+            # The content identity of the artifact. ``artifact_hash`` is a
+            # digest of serialised weights, which nothing here produces, so it
+            # was exported empty on every record -- naming the model but not
+            # which fitted object it was.
+            "model_id": artifact.model_id,
             "artifact_hash": artifact.artifact_hash,
             "model_name": artifact.model_name,
             "model_version": artifact.model_version,
